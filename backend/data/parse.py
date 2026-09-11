@@ -13,8 +13,13 @@ for path in XML_DIR.rglob("*.xml"):
     except ET.ParseError as e:
         parse_errors.append((path.name, str(e)))
         continue
-    for el in root.iter():
-        tag_count[el.tag] += 1
+    root_body = root.find('LawBody')
+    root_main= root_body.find('MainProvision')
+    if root_main is None:
+        main_none_count += 1
+    else:
+        for el in root_main:
+            tag_count[el.tag] += 1
     # path_count.update()
 
 for tag, count in tag_count.most_common():
