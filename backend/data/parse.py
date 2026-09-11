@@ -2,14 +2,28 @@ import xml.etree.ElementTree as ET
 import pathlib
 from collections import Counter
 
-path_data = pathlib.Path(__file__).parent
-path_count = Counter()
-for path in path_data.rglob("*.xml"):
-    tree = ET.parse(path)
-    root = tree.getroot()
-    for child in root:
-        tag[] = child.tag
-        path_count.update(tag)
+BASE_DIR = pathlib.Path(__file__).parent
+XML_DIR = BASE_DIR / "all_xml"
+
+tag_count = Counter()
+parse_errors = []
+for path in XML_DIR.rglob("*.xml"):
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError as e:
+        parse_errors.append((path.name, str(e)))
+        continue
+    for el in root.iter():
+        tag_count[el.tag] += 1
+    # path_count.update()
+
+for tag, count in tag_count.most_common():
+    print(count, tag)
+print("失敗:", len(parse_errors), "件")
+
+print(XML_DIR)
+print(XML_DIR.exists())
+print(len(list(XML_DIR.rglob("*.xml"))))
 
 # root.iter()
 
