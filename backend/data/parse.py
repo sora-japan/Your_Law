@@ -11,6 +11,8 @@ article_none_count = 0
 article_none_name = []
 hide_count = Counter()
 hide_true_name = []
+delete_count = Counter()
+extract_count = Counter()
 for path in XML_DIR.rglob("*.xml"):
     try:
         root = ET.parse(path).getroot()
@@ -21,6 +23,12 @@ for path in XML_DIR.rglob("*.xml"):
     root_main = root_body.find('MainProvision')
     root_article = root_main.findall('.//Article')
     hide = root.findall('.//*[@Hide]')
+    delete = root.findall('.//*[@Delete]')
+    extract = root.findall('.//*[@Extract]')
+    for el in extract:
+        extract_count[el.tag] += 1
+    for el in delete:
+        delete_count[el.attrib['Delete']] += 1
     for el in hide:
         hide_count[el.attrib['Hide']] += 1
         if el.attrib['Hide'] == 'true':
@@ -33,6 +41,12 @@ for path in XML_DIR.rglob("*.xml"):
             tag_count[el.tag] += 1
     # path_count.update()
 print(root.attrib)
+
+print("=====")
+print("Extractの数: ", extract_count)
+
+print("=====")
+print("Deleteの数 :", delete_count)
 
 print("=====")
 print("Hideの数: ", hide_count)
