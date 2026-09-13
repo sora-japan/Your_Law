@@ -72,9 +72,10 @@ for path in XML_DIR.rglob("*.xml"):
         if '\t' in stripped:
             column_stats['内部にタブ'] += 1
 
-        if ' ' in stripped or '\u3000' in stripped:
-            if len(column_inner_space_samples) < 10:
-                column_inner_space_samples.append((path.name, repr(stripped[:120])))
+        if ' ' in stripped:
+            if len(column_inner_space_samples) < 1:
+                display = stripped.replace(' ', '␣')
+                column_inner_space_samples.append((path.name, display))
     # path_count.update()
 print(root.attrib)
 

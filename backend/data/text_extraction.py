@@ -1,9 +1,15 @@
 import xml.etree.ElementTree as ET
 import pathlib
 from xml.etree.ElementTree import Element
+import re
 
 # BASE_DIR = pathlib.Path(__file__).parent
 # XML_DIR = BASE_DIR / "all_xml"
+
+def normalization_text(parts: str) -> str:
+    result = re.sub(r'[\n\t ]+', '', parts).strip()
+    return result
+
 
 def extract_text(root: Element) -> str:
     parts = []
@@ -21,7 +27,8 @@ if __name__ == "__main__":
 # このループ処理は、ほかのファイル内に書いた方が綺麗？
     text_list = []
     # for path in XML_DIR.rglob("*.xml"):
-    path_xml = pathlib.Path("502AC1000000077_20201211_000000000000000.xml")
+    # path_xml = pathlib.Path("502AC1000000077_20201211_000000000000000.xml")
+    path_xml = pathlib.Path("325AC0000000201_20261126_508AC0000000023.xml")
     #  for path in path_xml.glob('*.xml'):
     #      try:
     #          root = ET.parse(path).getroot()
@@ -33,5 +40,6 @@ if __name__ == "__main__":
     # return root
     root = ET.parse(path_xml).getroot()
     text_list = extract_text(root)
-
-    print(text_list)
+    clear_norma = normalization_text(text_list)
+    print(clear_norma)
+    # print(text_list)
