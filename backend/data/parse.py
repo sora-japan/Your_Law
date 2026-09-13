@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import pathlib
 from collections import Counter
+from text_extraction import extract_text
 
 BASE_DIR = pathlib.Path(__file__).parent
 XML_DIR = BASE_DIR / "all_xml"
@@ -13,6 +14,9 @@ hide_count = Counter()
 hide_true_name = []
 delete_count = Counter()
 extract_count = Counter()
+rt_count = Counter()
+column_stats = Counter()
+column_inner_space_samples = []
 for path in XML_DIR.rglob("*.xml"):
     try:
         root = ET.parse(path).getroot()
@@ -25,6 +29,12 @@ for path in XML_DIR.rglob("*.xml"):
     hide = root.findall('.//*[@Hide]')
     delete = root.findall('.//*[@Delete]')
     extract = root.findall('.//*[@Extract]')
+    rt = root.findall('.//Rt')
+    for el in rt:
+        if el.tail is not None:
+            el_tail = el.tail.strip()
+            if el_tail != "":
+                rt_count[el_tail] += 1
     for el in extract:
         extract_count[el.tag] += 1
     for el in delete:
@@ -39,8 +49,43 @@ for path in XML_DIR.rglob("*.xml"):
     else:
         for el in root_article:
             tag_count[el.tag] += 1
+# --- ループの中 ---
+    for el in root.findall('.//Column'):
+        raw = extract_text(el)
+        stripped = raw.strip()
+
+        if stripped == "":
+            column_stats['空'] += 1
+            continue
+
+        if raw != stripped:
+            column_stats['前後に空白あり'] += 1
+        else:
+            column_stats['前後に空白なし'] += 1
+
+        if ' ' in stripped:
+            column_stats['内部に半角スペース'] += 1
+        if '\u3000' in stripped:
+            column_stats['内部に全角スペース'] += 1
+        if '\n' in stripped:
+            column_stats['内部に改行'] += 1
+        if '\t' in stripped:
+            column_stats['内部にタブ'] += 1
+
+        if ' ' in stripped or '\u3000' in stripped:
+            if len(column_inner_space_samples) < 10:
+                column_inner_space_samples.append((path.name, repr(stripped[:120])))
     # path_count.update()
 print(root.attrib)
+
+print("===")
+print("Column の内訳:", column_stats)
+print("内部に空白があるサンプル:")
+for name, text in column_inner_space_samples:
+    print(" ", name, text)
+
+print("=====")
+print("rtの数、.tailにテキストが入っているか: ", rt_count)
 
 print("=====")
 print("Extractの数: ", extract_count)
