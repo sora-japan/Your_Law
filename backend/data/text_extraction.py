@@ -23,6 +23,7 @@ def extract_text(root: Element) -> str:
     str_text = "".join(parts)
     return str_text
 
+
 if __name__ == "__main__":
 # このループ処理は、ほかのファイル内に書いた方が綺麗？
     text_list = []
