@@ -83,6 +83,7 @@ list_article = []
 count_article_max = Counter()
 count_article_max["max"] = 0
 len_max_name = []
+count_article_tag = Counter()
 for path in XML_DIR.rglob("*.xml"):
     try:
         root = ET.parse(path).getroot()
@@ -93,6 +94,7 @@ for path in XML_DIR.rglob("*.xml"):
     root_body = root.find('LawBody')
     root_main = root_body.find('MainProvision')
     root_article = root_main.findall('.//Article')
+    # root_tablecolumn = root_article.findall('.//TableColumn')
     for article in root_article:
         article_text = extract_text(article)
         article_text_norma = normalization_text(article_text)
@@ -109,13 +111,25 @@ for path in XML_DIR.rglob("*.xml"):
             count_article["5001 ~ 8000"] += 1
         elif len_article_text >= 8001:
             count_article["8001~"] += 1
+            table_count = len(article.findall('.//TableColumn'))
+            item_count = len(article.findall('.//Item'))
+            if table_count >= 50:
+                count_article_tag["表が多い"] += 1
+            elif item_count >= 50:
+                count_article_tag["号が多い"] += 1
+            else:
+                count_article_tag["どちらでもない"] += 1
         if count_article_max["max"] < len_article_text:
             count_article_max["max"] = len_article_text
             len_max_name.append(path.name)
 
+
+
 print(count_article)
 print(count_article_max)
 print(len_max_name)
+print("===")
+print(count_article_tag)
 # print("一番長い条: ", count_article.most_common())
 
 # print(root.attrib)
