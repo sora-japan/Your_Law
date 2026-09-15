@@ -78,89 +78,103 @@ XML_DIR = BASE_DIR / "all_xml"
 #                 column_inner_space_samples.append((path.name, display))
 #     # path_count.update()
 
-count_article = Counter()
-list_article = []
-count_article_max = Counter()
-count_article_max["max"] = 0
-len_max_name = []
-count_article_tag = Counter()
-article_tag_count = Counter()
-len_paragraph_max = 0
-len_item_max = 0
-count_len_item = Counter()
-item_name = []
-for path in XML_DIR.rglob("*.xml"):
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError as e:
-        parse_errors.append((path.name, str(e)))
-        continue
+# count_article = Counter()
+# list_article = []
+# count_article_max = Counter()
+# count_article_max["max"] = 0
+# len_max_name = []
+# count_article_tag = Counter()
+# article_tag_count = Counter()
+# len_paragraph_max = 0
+# len_item_max = 0
+# count_len_item = Counter()
+# item_name = []
+# for path in XML_DIR.rglob("*.xml"):
+#     try:
+#         root = ET.parse(path).getroot()
+#     except ET.ParseError as e:
+#         parse_errors.append((path.name, str(e)))
+#         continue
+# 
+#     root_body = root.find('LawBody')
+#     root_main = root_body.find('MainProvision')
+#     root_article = root_main.findall('.//Article')
+#     # root_tablecolumn = root_article.findall('.//TableColumn')
+#     for article in root_article:
+#         article_text = extract_text(article)
+#         article_text_norma = normalization_text(article_text)
+#         len_article_text = len(article_text_norma)
+#         if len_article_text < 500:
+#             count_article["~500文字"] += 1
+#         elif len_article_text <= 1000:
+#             count_article["500~1000"] += 1
+#         elif len_article_text <= 2000:
+#             count_article["1001~2000"] += 1
+#         elif len_article_text <= 5000:
+#             count_article["2001~5000"] += 1
+#         elif len_article_text <= 8000:
+#             count_article["5001 ~ 8000"] += 1
+#         elif len_article_text >= 8001:
+#             count_article["8001~"] += 1
+#             for el in article.iter():
+#                 article_tag_count[el.tag] += 1
+#             for para in article.findall('Paragraph'):
+#                 para_text = extract_text(para)
+#                 len_paragraph_text = len(normalization_text(para_text))
+#                 if len_paragraph_max < len_paragraph_text:
+#                     len_paragraph_max = len_paragraph_text
+#             for item in article.findall('.//Item'):
+#                 item_text = extract_text(item)
+#                 len_item_text = len(normalization_text(item_text))
+#                 if len_item_text > 8000:
+#                     count_len_item["8000文字を超える号の数"] += 1
+#                     item_name.append((path.name, article.attrib.get('Num'), item.attrib.get('Num'), len_item_text))
+#                 if len_item_max < len_item_text:
+#                     len_item_max = len_item_text
+#             # table_count = len(article.findall('.//TableColumn'))
+#             # item_count = len(article.findall('.//Item'))
+#             # if table_count >= 50:
+#             #     count_article_tag["表が多い"] += 1
+#             # elif item_count >= 50:
+#             #     count_article_tag["号が多い"] += 1
+#             # else:
+#             #     count_article_tag["どちらでもない"] += 1
+#         if count_article_max["max"] < len_article_text:
+#             count_article_max["max"] = len_article_text
+#             len_max_name.append(path.name)
+# 
+# 
+# 
+# print(count_article)
+# print(count_article_max)
+# print(len_max_name)
+# print("===")
+# print(count_article_tag)
+# print("===")
+# print(article_tag_count)
+# print("===")
+# print("paragraphの文字数", len_paragraph_max)
+# print("===")
+# print("itemの文字数", len_item_max)
+# print("8000文字を超えるitemの数", count_len_item)
+# print("8000文字超の号:", len(item_name), "件")
+# for name, art_num, item_num, length in sorted(item_name):
+#     print(f"  {length:>7,}  第{art_num}条 第{item_num}号  {name}")
+# print("===")
 
-    root_body = root.find('LawBody')
-    root_main = root_body.find('MainProvision')
-    root_article = root_main.findall('.//Article')
-    # root_tablecolumn = root_article.findall('.//TableColumn')
-    for article in root_article:
-        article_text = extract_text(article)
-        article_text_norma = normalization_text(article_text)
-        len_article_text = len(article_text_norma)
-        if len_article_text < 500:
-            count_article["~500文字"] += 1
-        elif len_article_text <= 1000:
-            count_article["500~1000"] += 1
-        elif len_article_text <= 2000:
-            count_article["1001~2000"] += 1
-        elif len_article_text <= 5000:
-            count_article["2001~5000"] += 1
-        elif len_article_text <= 8000:
-            count_article["5001 ~ 8000"] += 1
-        elif len_article_text >= 8001:
-            count_article["8001~"] += 1
-            for el in article.iter():
-                article_tag_count[el.tag] += 1
-            for para in article.findall('Paragraph'):
-                para_text = extract_text(para)
-                len_paragraph_text = len(normalization_text(para_text))
-                if len_paragraph_max < len_paragraph_text:
-                    len_paragraph_max = len_paragraph_text
-            for item in article.findall('.//Item'):
-                item_text = extract_text(item)
-                len_item_text = len(normalization_text(item_text))
-                if len_item_text > 8000:
-                    count_len_item["8000文字を超える号の数"] += 1
-                    item_name.append((path.name, article.attrib.get('Num'), item.attrib.get('Num'), len_item_text))
-                if len_item_max < len_item_text:
-                    len_item_max = len_item_text
-            # table_count = len(article.findall('.//TableColumn'))
-            # item_count = len(article.findall('.//Item'))
-            # if table_count >= 50:
-            #     count_article_tag["表が多い"] += 1
-            # elif item_count >= 50:
-            #     count_article_tag["号が多い"] += 1
-            # else:
-            #     count_article_tag["どちらでもない"] += 1
-        if count_article_max["max"] < len_article_text:
-            count_article_max["max"] = len_article_text
-            len_max_name.append(path.name)
+target = "325AC0000000226"
+ver = []
+for path in XML_DIR.rglob(f"{target}_*.xml"):
+    law_id = path.stem
+    ver.append((law_id))
 
+#for enforce_date, amend_id in sorted(ver):
+#    print(enforce_date, amend_id)
+for i in sorted(ver):
+    print(i)
 
+#print("合計：", len(ver), "版")
 
-print(count_article)
-print(count_article_max)
-print(len_max_name)
-print("===")
-print(count_article_tag)
-print("===")
-print(article_tag_count)
-print("===")
-print("paragraphの文字数", len_paragraph_max)
-print("===")
-print("itemの文字数", len_item_max)
-print("8000文字を超えるitemの数", count_len_item)
-print("8000文字超の号:", len(item_name), "件")
-for name, art_num, item_num, length in sorted(item_name, key=lambda x: -x[3]):
-    print(f"  {length:>7,}  第{art_num}条 第{item_num}号  {name}")
-print("===")
 
 # print("一番長い条: ", count_article.most_common())
 
