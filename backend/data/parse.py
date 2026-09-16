@@ -163,26 +163,33 @@ XML_DIR = BASE_DIR / "all_xml"
 #     print(f"  {length:>7,}  第{art_num}条 第{item_num}号  {name}")
 # print("===")
 
-past_per_law = Counter()
-all_law_ids = set()
+# past_per_law = Counter()
+# all_law_ids = set()
+# 
+# for path in XML_DIR.rglob("*.xml"):
+#     parts = path.stem.split('_')
+#     law_id, enforce_date = parts[0], parts[1]
+#     all_law_ids.add(law_id)
+#     if enforce_date <= "20260916":
+#         past_per_law[law_id] += 1
+# 
+# dist = Counter(past_per_law.values())
+# print("過去日ファイル数の分布: ", sorted(dist.items()))
+# 
+# multi = {k: v for k, v in past_per_law.items() if v >= 2}
+# print("過去日が2件以上の法令: ", len(multi), "件")
+# print("上位: ", sorted(multi.items(), key=lambda x: -x[1])[:10])
+# 
+# no_past = all_law_ids - set(past_per_law.keys())
+# print("過去日を持たない法令:", len(no_past), "件")
+# print("例:", list(no_past)[:10])
 
-for path in XML_DIR.rglob("*.xml"):
+for path in XML_DIR.rglob("332AC0000000026*.xml"):
     parts = path.stem.split('_')
-    law_id, enforce_date = parts[0], parts[1]
-    all_law_ids.add(law_id)
-    if enforce_date <= "20260916":
-        past_per_law[law_id] += 1
+    enforce = parts[1]
+    if enforce <= '20260916':
+        print(parts)
 
-dist = Counter(past_per_law.values())
-print("過去日ファイル数の分布: ", sorted(dist.items()))
-
-multi = {k: v for k, v in past_per_law.items() if v >= 2}
-print("過去日が2件以上の法令: ", len(multi), "件")
-print("上位: ", sorted(multi.items(), key=lambda x: -x[1])[:10])
-
-no_past = all_law_ids - set(past_per_law.keys())
-print("過去日を持たない法令:", len(no_past), "件")
-print("例:", list(no_past)[:10])
 
 # enfoce = Counter()
 # future_dates = Counter()
