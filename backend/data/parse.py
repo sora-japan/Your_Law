@@ -7,6 +7,79 @@ from collections import Counter
 BASE_DIR = pathlib.Path(__file__).parent
 XML_DIR = BASE_DIR / "all_xml"
 
+
+# for path in XML_DIR.rglob("*.xml"):
+#     try:
+#         root = ET.parse(path).getroot()
+#     except ET.ParseError as e:
+#         parse_errors.append((path.name, str(e)))
+#         continue
+#     root_body = root.find('LawBody')
+#     root_main = root_body.find('MainProvision')
+#     root_article = root_main.findall('.//Article')
+#     hide = root.findall('.//*[@Hide]')
+#     delete = root.findall('.//*[@Delete]')
+# 
+#     parts = path.stem.split('_')
+#     enforce = parts[1]
+#     if enforce <= '20260916':
+#         print(parts)
+
+group_couter = Counter()
+for path in XML_DIR.rglob("*.xml"):
+    parts = path.stem.split('_')
+    group_couter[(parts[0], parts[1])] += 1
+
+group = {k: v for k, v in group_couter.items() if v >= 2}
+groups = {}
+# for path in XML_DIR.rglob("325AC0000000226_20270401*.xml"):
+for i, (law_id, enforce_date) in enumerate(group.keys(), 1):
+    print(f"{i}/{len(group)} {law_id}_{enforce_date}")
+    for path in XML_DIR.rglob(f"{law_id}_{enforce_date}_*.xml"):
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError as e:
+            parse_errors.append((path.name, str(e)))
+            continue
+        parts = path.stem.split('_')
+        group_couter[(parts[0], parts[1])] += 1
+        key = (parts[0], parts[1])
+        amend_id = parts[2]
+        root_body = root.find('LawBody')
+        root_main = root_body.find('MainProvision')
+        # nums = {a.get('Num') for a in root_main.findall('.//Article')}
+        nums = set()
+        for a in root_main.findall('.//Article'):
+            nums.add(a.get('Num'))
+        groups.setdefault(key, {})[amend_id] = nums
+        # for amend_id, nums in groups.items():
+
+
+for key, ver in groups.items():
+    latest = max(ver.keys())
+    cand = ver[latest]
+    for amend_id, nums in ver.items():
+        if amend_id == latest:
+            continue
+        missing = nums - cand
+        print(amend_id, '欠落', len(missing), list(missing)[:5])
+
+
+
+# law_id = path.stem.split('_')
+# group_couter[(law_id[0], law_id[1])] += 1
+# group = {k: v for k, v in group_couter.items() if v >= 2}
+# print(group)
+
+# group_couter = Counter()
+# for path in XML_DIR.rglob("*.xml"):
+#     law_id = path.stem.split('_')
+#     group_couter[(law_id[0], law_id[1])] += 1
+# 
+# group = {k: v for k, v in group_couter.items() if v >= 2}
+# print(group)
+
+
 # tag_count = Counter()
 # parse_errors = []
 # article_none_count = 0
@@ -184,11 +257,11 @@ XML_DIR = BASE_DIR / "all_xml"
 # print("過去日を持たない法令:", len(no_past), "件")
 # print("例:", list(no_past)[:10])
 
-for path in XML_DIR.rglob("332AC0000000026*.xml"):
-    parts = path.stem.split('_')
-    enforce = parts[1]
-    if enforce <= '20260916':
-        print(parts)
+# for path in XML_DIR.rglob("332AC0000000026*.xml"):
+#     parts = path.stem.split('_')
+#     enforce = parts[1]
+#     if enforce <= '20260916':
+#         print(parts)
 
 
 # enfoce = Counter()
