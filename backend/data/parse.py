@@ -1,7 +1,8 @@
 import xml.etree.ElementTree as ET
 import pathlib
-from collections import Counter
+import collections
 from text_extraction import extract_text, normalization_text
+from collections import Counter
 
 BASE_DIR = pathlib.Path(__file__).parent
 XML_DIR = BASE_DIR / "all_xml"
@@ -162,16 +163,17 @@ XML_DIR = BASE_DIR / "all_xml"
 #     print(f"  {length:>7,}  第{art_num}条 第{item_num}号  {name}")
 # print("===")
 
-target = "325AC0000000226"
-ver = []
-for path in XML_DIR.rglob(f"{target}_*.xml"):
-    law_id = path.stem
-    ver.append((law_id))
+group_couter = Counter()
+for path in XML_DIR.rglob("*.xml"):
+    law_id = path.stem.split('_')
+    group_couter[(law_id[0], law_id[1])] += 1
 
+group = {k: v for k, v in group_couter.items() if v >= 2}
+print(group)
 #for enforce_date, amend_id in sorted(ver):
 #    print(enforce_date, amend_id)
-for i in sorted(ver):
-    print(i)
+# for i in sorted(ver):
+#     print(i)
 
 #print("合計：", len(ver), "版")
 
