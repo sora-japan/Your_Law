@@ -14,15 +14,41 @@ for path in XML_DIR.rglob("325AC0000000226_*.xml"):
     except ET.ParseError as e:
         parse_errors.append((path.name, str(e)))
         continue
+    parts = path.stem.split('_')
     root_body = root.find('LawBody')
     root_main = root_body.find('MainProvision')
     list_article = root_main.findall('.//Article')
-    ver = {a.get('Num'): normalization_text(extract_text(a)) for a in list_article}
+    ver[(parts[1], parts[2])] = {a.get('Num'): normalization_text(extract_text(a)) for a in list_article}
 
-print(ver)
+# print(len(ver))
 
 
+past_key = [c for c in ver if c[0] <= '20260915']
+current_key = max(past_key)
+current = ver[current_key]
 
+result = {}
+for k in ver:
+    if k == current_key:
+        continue
+    future = ver[k]
+    changed = [nums for nums in current if nums in future and current[nums] != future[nums]]
+    added = future.keys() - current.keys()
+    removed = current.keys() - future.keys()
+    result[k] = {
+        "変更": len(changed),
+        "追加": len(added),
+        "削除": len(removed),
+        "合計": len(changed) + len(added) + len(removed),
+    }
+
+for k in sorted(result):
+    r = result[k]
+    print(k, r)
+
+total = sum(r["合計"] for r in result.values())
+print("差分チャンク合計:", total)
+print("全条を持つ場合:", len(ver) * len(current))
 
 # for path in XML_DIR.rglob("*.xml"):
 #     try:
