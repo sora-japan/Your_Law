@@ -33,36 +33,37 @@ for path in XML_DIR.rglob("*.xml"):
 group = {k: v for k, v in group_couter.items() if v >= 2}
 groups = {}
 # for path in XML_DIR.rglob("325AC0000000226_20270401*.xml"):
-for i, (law_id, enforce_date) in enumerate(group.keys(), 1):
-    print(f"{i}/{len(group)} {law_id}_{enforce_date}")
-    for path in XML_DIR.rglob(f"{law_id}_{enforce_date}_*.xml"):
-        try:
-            root = ET.parse(path).getroot()
-        except ET.ParseError as e:
-            parse_errors.append((path.name, str(e)))
-            continue
-        parts = path.stem.split('_')
-        group_couter[(parts[0], parts[1])] += 1
-        key = (parts[0], parts[1])
-        amend_id = parts[2]
-        root_body = root.find('LawBody')
-        root_main = root_body.find('MainProvision')
-        # nums = {a.get('Num') for a in root_main.findall('.//Article')}
-        nums = set()
-        for a in root_main.findall('.//Article'):
-            nums.add(a.get('Num'))
-        groups.setdefault(key, {})[amend_id] = nums
-        # for amend_id, nums in groups.items():
+# for i, (law_id, enforce_date) in enumerate(group.keys(), 1):
+#     print(f"{i}/{len(group)} {law_id}_{enforce_date}")
+for path in XML_DIR.rglob(f"323M40000100050_20270401_*.xml"):
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError as e:
+        parse_errors.append((path.name, str(e)))
+        continue
+    parts = path.stem.split('_')
+    key = (parts[0], parts[1])
+    amend_id = parts[2]
+    root_body = root.find('LawBody')
+    root_main = root_body.find('MainProvision')
+    # nums = {a.get('Num') for a in root_main.findall('.//Article')}
+    nums = set()
+    for a in root_main.findall('.//Article'):
+        nums.add(a.get('Num'))
+    groups.setdefault(key, {})[amend_id] = nums
+    # for amend_id, nums in groups.items():
 
 
 for key, ver in groups.items():
+    print(key, "版: ", sorted(ver.keys()))
     latest = max(ver.keys())
+    print("候補: ", latest)
     cand = ver[latest]
     for amend_id, nums in ver.items():
         if amend_id == latest:
             continue
         missing = nums - cand
-        print(amend_id, '欠落', len(missing), list(missing)[:5])
+        print(key, amend_id, '欠落', len(missing), list(missing))
 
 
 
