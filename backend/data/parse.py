@@ -7,48 +7,123 @@ from collections import Counter
 BASE_DIR = pathlib.Path(__file__).parent
 XML_DIR = BASE_DIR / "all_xml"
 
-ver = {}
-for path in XML_DIR.rglob("325AC0000000226_*.xml"):
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError as e:
-        parse_errors.append((path.name, str(e)))
+from collections import Counter
+
+TODAY = '20260915'
+
+# 1. 法令IDごとのファイル数（パース不要）
+files_per_law = Counter()
+for path in XML_DIR.rglob("*.xml"):
+    files_per_law[path.stem.split('_')[0]] += 1
+
+targets = [law_id for law_id, n in files_per_law.items() if n >= 2]
+print("対象法令数:", len(targets))
+
+# 2. 法令ごとに差分を測る
+law_results = {}
+removed_samples = []
+
+for i, law_id in enumerate(targets, 1):
+    if i % 50 == 0:
+        print(f"  {i}/{len(targets)}")
+
+    ver = {}
+    for path in XML_DIR.rglob(f"{law_id}_*.xml"):
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError as e:
+            parse_errors.append((path.name, str(e)))
+            continue
+        parts = path.stem.split('_')
+        main = root.find('LawBody').find('MainProvision')
+        ver[(parts[1], parts[2])] = {
+            a.get('Num'): normalization_text(extract_text(a))
+            for a in main.findall('.//Article')
+        }
+
+    past_keys = [k for k in ver if k[0] <= TODAY]
+    if not past_keys:
         continue
-    parts = path.stem.split('_')
-    root_body = root.find('LawBody')
-    root_main = root_body.find('MainProvision')
-    list_article = root_main.findall('.//Article')
-    ver[(parts[1], parts[2])] = {a.get('Num'): normalization_text(extract_text(a)) for a in list_article}
+    current_key = max(past_keys)
+    current = ver[current_key]
 
-# print(len(ver))
+    diff_total = 0
+    removed_total = 0
+    for k in ver:
+        if k == current_key:
+            continue
+        future = ver[k]
+        changed = [n for n in current if n in future and current[n] != future[n]]
+        added = future.keys() - current.keys()
+        removed = current.keys() - future.keys()
+        diff_total += len(changed) + len(added) + len(removed)
+        removed_total += len(removed)
+        if removed and len(removed_samples) < 20:
+            removed_samples.append((law_id, k, sorted(removed)))
 
-
-past_key = [c for c in ver if c[0] <= '20260915']
-current_key = max(past_key)
-current = ver[current_key]
-
-result = {}
-for k in ver:
-    if k == current_key:
-        continue
-    future = ver[k]
-    changed = [nums for nums in current if nums in future and current[nums] != future[nums]]
-    added = future.keys() - current.keys()
-    removed = current.keys() - future.keys()
-    result[k] = {
-        "変更": len(changed),
-        "追加": len(added),
-        "削除": len(removed),
-        "合計": len(changed) + len(added) + len(removed),
+    law_results[law_id] = {
+        "版数": len(ver),
+        "現行条数": len(current),
+        "差分合計": diff_total,
+        "削除合計": removed_total,
     }
 
-for k in sorted(result):
-    r = result[k]
-    print(k, r)
+# 3. 集計
+diff_sum = sum(r["差分合計"] for r in law_results.values())
+full_sum = sum(r["版数"] * r["現行条数"] for r in law_results.values())
+removed_laws = [k for k, r in law_results.items() if r["削除合計"] > 0]
+removed_sum = sum(r["削除合計"] for r in law_results.values())
 
-total = sum(r["合計"] for r in result.values())
-print("差分チャンク合計:", total)
-print("全条を持つ場合:", len(ver) * len(current))
+print("差分チャンク合計:", diff_sum)
+print("全条を持つ場合:", full_sum)
+print("削除が発生した法令:", len(removed_laws), "件")
+print("削除された条の総数:", removed_sum)
+print("削除サンプル:")
+for s in removed_samples[:10]:
+    print("  ", s)
+
+# ver = {}
+# for path in XML_DIR.rglob("325AC0000000226_*.xml"):
+#     try:
+#         root = ET.parse(path).getroot()
+#     except ET.ParseError as e:
+#         parse_errors.append((path.name, str(e)))
+#         continue
+#     parts = path.stem.split('_')
+#     root_body = root.find('LawBody')
+#     root_main = root_body.find('MainProvision')
+#     list_article = root_main.findall('.//Article')
+#     ver[(parts[1], parts[2])] = {a.get('Num'): normalization_text(extract_text(a)) for a in list_article}
+# 
+# # print(len(ver))
+# 
+# 
+# past_key = [c for c in ver if c[0] <= '20260915']
+# current_key = max(past_key)
+# current = ver[current_key]
+# 
+# result = {}
+# for k in ver:
+#     if k == current_key:
+#         continue
+#     future = ver[k]
+#     changed = [nums for nums in current if nums in future and current[nums] != future[nums]]
+#     added = future.keys() - current.keys()
+#     removed = current.keys() - future.keys()
+#     result[k] = {
+#         "変更": len(changed),
+#         "追加": len(added),
+#         "削除": len(removed),
+#         "合計": len(changed) + len(added) + len(removed),
+#     }
+# 
+# for k in sorted(result):
+#     r = result[k]
+#     print(k, r)
+# 
+# total = sum(r["合計"] for r in result.values())
+# print("差分チャンク合計:", total)
+# print("全条を持つ場合:", len(ver) * len(current))
 
 # for path in XML_DIR.rglob("*.xml"):
 #     try:
