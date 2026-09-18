@@ -7,23 +7,52 @@ from collections import Counter
 BASE_DIR = pathlib.Path(__file__).parent
 XML_DIR = BASE_DIR / "all_xml"
 
-ver = {}
-for path in XML_DIR.rglob("411AC0000000089_*.xml"):
-    root = ET.parse(path).getroot()
+current_law_id = {}
+for path in XML_DIR.rglob('*.xml'):
     parts = path.stem.split('_')
+    if parts[1] > '20260915':
+        continue
+    if parts[0] not in current_law_id or parts[1] > current_law_id[parts[0]][0]:
+        current_law_id[parts[0]] = (parts[1], path)
+
+dist = Counter()
+max_text = 0
+for law_id, (enforce_date, path) in current_law_id.items():
+    root = ET.parse(path).getroot()
     main = root.find('LawBody').find('MainProvision')
-    ver[(parts[1], parts[2])] = {
-        a.get('Num'): normalization_text(extract_text(a))
-        for a in main.findall('.//Article')
-    }
+    for article in main.findall('.//Article'):
+        for item in article.findall('.//Item'):
+            text = normalization_text(extract_text(item))
+            length = len(text)
+            if length <= 500:
+                dist["~500"] += 1
+            elif length <= 1000:
+                dist["501 ~ 1000"] += 1
+            elif length <= 2000:
+                dist["1001 ~ 2000"] += 1
+            elif length <= 5000:
+                dist["2001 ~ 5000"] += 1
+            elif length <= 8000:
+                dist["5001~8000"] += 1
+            elif length > 8000:
+                dist["8001 ~ "] += 1
+            if length > max_text:
+                max_text = length
 
-past_keys = [k for k in ver if k[0] <= '20260915']
-current_key = max(past_keys)
-current = ver[current_key]
+print(dist)
+print(sum(dist.values()))
+print(max_text)
 
-print(current_key)
-print('9_2 :', current.get('9_2'))
-print('16_2:', current.get('16_2'))
+# past_keys = [k for k in ver if k[0] <= '20260915']
+# current_key = ver[max(past_keys)]
+# print(current_key)
+
+# current = ver[current_key]
+
+# print(past_keys)
+# print("===")
+# print('9_2 :', current.get('9_2'))
+# print('16_2:', current.get('16_2'))
 
 # TODAY = '20260915'
 # 
