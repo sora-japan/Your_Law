@@ -15,35 +15,44 @@ for path in XML_DIR.rglob('*.xml'):
     if parts[0] not in current_law_id or parts[1] > current_law_id[parts[0]][0]:
         current_law_id[parts[0]] = (parts[1], path)
 
-dict = Counter()
+dist = Counter()
 max_text = 0
+file_name = {}
 for law_id, (enforce_date, path) in current_law_id.items():
     root = ET.parse(path).getroot()
     main = root.find('LawBody').find('MainProvision')
     for article in main.findall('.//Article'):
-        for item in article.findall('.//Item'):
-            text = normalization_text(extract_text(item))
-            length = len(text)
-            if length <= 200:
-                dict["~200"] += 1
-            elif length <= 500:
-                dict["~500"] += 1
-            elif length <= 1000:
-                dict["501 ~ 1000"] += 1
-            elif length <= 2000:
-                dict["1001 ~ 2000"] += 1
-            elif length <= 5000:
-                dict["2001 ~ 5000"] += 1
-            elif length <= 8000:
-                dict["5001~8000"] += 1
-            elif length > 8000:
-                dict["8001 ~ "] += 1
-            if length > max_text:
-                max_text = length
+        # for item in article.findall('.//Item'):
+        text = normalization_text(extract_text(article))
+        length = len(text)
+        if length <= 200:
+            dist["~200"] += 1
+            file_name["~ 200"] = (path.stem, article.get('Num'), length)
+        elif length <= 500:
+            dist["201 ~ 500"] += 1
+            file_name["201 ~ 500"] = (path.stem, article.get('Num'), length)
+        elif length <= 1000:
+            dist["501 ~ 1000"] += 1
+            file_name["501 ~ 100"] = (path.stem, article.get('Num'), length)
+        elif length <= 2000:
+            dist["1001 ~ 2000"] += 1
+            file_name["1001 ~ 2000"] = (path.stem, article.get('Num'), length)
+        elif length <= 5000:
+            dist["2001 ~ 5000"] += 1
+            file_name["2001 ~ 5000"] = (path.stem, article.get('Num'), length)
+        elif length <= 8000:
+            dist["5001~8000"] += 1
+            file_name["5001 ~ 8000"] = (path.stem, article.get('Num'), length)
+        elif length > 8000:
+            dist["8001 ~ "] += 1
+            file_name["8001 ~"] = (path.stem, article.get('Num'), length)
+        if length > max_text:
+            max_text = length
 
-print(dict)
-print(sum(dict.values()))
+print(dist)
+print(sum(dist.values()))
 print(max_text)
+print(file_name)
 
 # past_keys = [k for k in ver if k[0] <= '20260915']
 # current_key = ver[max(past_keys)]
@@ -411,8 +420,8 @@ print(max_text)
 #     if enforce_date <= "20260916":
 #         past_per_law[law_id] += 1
 # 
-# dict = Counter(past_per_law.values())
-# print("過去日ファイル数の分布: ", sorted(dict.items()))
+# dist = Counter(past_per_law.values())
+# print("過去日ファイル数の分布: ", sorted(dist.items()))
 # 
 # multi = {k: v for k, v in past_per_law.items() if v >= 2}
 # print("過去日が2件以上の法令: ", len(multi), "件")
