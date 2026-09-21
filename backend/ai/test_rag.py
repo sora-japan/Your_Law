@@ -1,6 +1,5 @@
 import chromadb
 import torch
-import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
 from data.text_extraction import extract_text, normalization_text
 import xml.etree.ElementTree as ET
