@@ -9,7 +9,7 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).parent
 XML_DIR = BASE_DIR / "token_file"
 
-device = "mps" if torch.mps.is_available() else "cpu"
+device = "mps" if torch.backends.mps.is_available() else "cpu"
 model_name = "cl-nagoya/ruri-v3-310m"
 model = SentenceTransformer(model_name, device=device)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -28,6 +28,7 @@ for path in XML_DIR.rglob('*xml'):
 
 for r in sorted(result, key=lambda x: x[2]):
     print(r)
+
 
 # print(text)
 # print(len(text))
