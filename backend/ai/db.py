@@ -4,7 +4,9 @@ chroma_client = chromadb.Client()
 
 collection = chroma_client.create_collection(name="my_collection")
 
+
 collection.add(
+    embeddings=
     ids=["id1", "id2"],
     documents=[
         "日本の首都は東京です",
