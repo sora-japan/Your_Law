@@ -26,13 +26,16 @@ for path in XML_DIR.rglob('*xml'):
         result_article_num.append(article_num)
 
 encode_text = ["検索文書: " + r for r in result_text]
-embeddings = model.encode(encode_text)
+embeddings = model.encode(encode_text, normalize_embeddings=True)
 
 metadatas_article_num = [{"article_num": v} for v in result_article_num]
 
 chroma_client = chromadb.Client()
 
-collection = chroma_client.create_collection(name="my_collection")
+collection = chroma_client.create_collection(
+    name="my_collection",
+    metadata={"hnsw:space": "ip"}
+)
 
 collection.add(
     embeddings=embeddings,
@@ -43,7 +46,7 @@ collection.add(
 
 query_text = "検索クエリ: 職員の身分証明書の様式は？"
 
-query_embeddings = model.encode(query_text)
+query_embeddings = model.encode(query_text, normalize_embeddings=True)
 
 results = collection.query(
     query_embeddings=query_embeddings,
