@@ -18,7 +18,8 @@ output = model.generate(
     temperature=0.7,
     top_p=0.5,
 )
-# print(tokenizer.decode(output[0]))
+
+print(tokenizer.decode(output[0]))
 
 # text = "日本の首都は"
 # print(text)
@@ -27,15 +28,16 @@ output = model.generate(
 # for token_id in token_ids:
 #     print(f"{token_id}: {repr(tokenizer.decode([token_id]))}")
 
-# for token_id in tokenizer.encode("大規模言語モデル"):
-#     print(f"{token_id}: {repr(tokenizer.decode([token_id]))}")
+text = tokenizer.encode("大規模言語モデル")
+for token_id in text:
+    print(f"{token_id}: {repr(tokenizer.decode([token_id]))}")
 
-# print(tokenizer.vocab_size)
+print(tokenizer.vocab_size)
 
-# print(tokenizer.decode([0]))
-# print(tokenizer.decode([50256]))
+print(tokenizer.decode([0]))
+print(tokenizer.decode([50256]))
 
-## Token embeddings
+# Token embeddings
 token_id = 0
 print(tokenizer.decode([token_id]))
 embedding_table = model.get_input_embeddings().weight
