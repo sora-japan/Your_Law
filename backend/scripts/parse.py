@@ -7,31 +7,41 @@ from collections import Counter
 BASE_DIR = pathlib.Path(__file__).parent.parent
 XML_DIR = BASE_DIR / "data" / "all_xml"
 
-counte_article = Counter()
-counte_para = Counter()
-counter = Counter()
-supplnote = ""
+counte = Counter()
+list_file = ""
+tablestruct_file = ""
+amendprovision_file = ""
 for path in XML_DIR.rglob('*.xml'):
     root = ET.parse(path).getroot()
-    main = root.find('LawBody').find('MainProvision')
-    for article in main.iter('Article'):
-        for child_article in article:
-            counte_article[child_article.tag] += 1
-            if child_article.tag == 'SupplNote':
-                supplnote = path.stem
-            if child_article.tag in ('ArticleTitle', 'ArticleCaption'):
-                for grandchild in child_article:
-                    counter[child_article.tag + '>' + grandchild.tag] += 1
-                    if grandchild.tag == 'Line':
-                        print(path.stem)
+    article = root.find('LawBody').find('MainProvision')
+    for article in article.iter('Article'):
+        for para in article.iter('Paragraph'):
+            for child in para:
+                counte[child.tag] += 1
+                if child.tag == "List":
+                    list_file = path.stem
+                if child.tag == "TableStruct":
+                    tablestruct_file = path.stem
+                if child.tag == "AmendProvision":
+                    amendprovision_file = path.stem
+    # for article in main.iter('Article'):
+    #     for child_article in article:
+    #         counte_article[child_article.tag] += 1
+    #         if child_article.tag == 'SupplNote':
+    #             supplnote = path.stem
+    #         if child_article.tag in ('ArticleTitle', 'ArticleCaption'):
+    #             for grandchild in child_article:
+    #                 counter[child_article.tag + '>' + grandchild.tag] += 1
+    #                 if grandchild.tag == 'Line':
+    #                     print(path.stem)
 
-
+print(counte)
 print("===")
-print(counte_article)
-print("SupplNote: ", supplnote)
+print(list_file)
 print("===")
-print(counter)
-
+print(tablestruct_file)
+print("===")
+print(amendprovision_file)
 
 # current_law_id = {}
 # for path in XML_DIR.rglob('*.xml'):
