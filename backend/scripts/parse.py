@@ -9,14 +9,29 @@ XML_DIR = BASE_DIR / "data" / "all_xml"
 
 counte_article = Counter()
 counte_para = Counter()
+counter = Counter()
+supplnote = ""
 for path in XML_DIR.rglob('*.xml'):
     root = ET.parse(path).getroot()
     main = root.find('LawBody').find('MainProvision')
     for article in main.iter('Article'):
         for child_article in article:
             counte_article[child_article.tag] += 1
+            if child_article.tag == 'SupplNote':
+                supplnote = path.stem
+            if child_article.tag in ('ArticleTitle', 'ArticleCaption'):
+                for grandchild in child_article:
+                    counter[child_article.tag + '>' + grandchild.tag] += 1
+                    if grandchild.tag == 'Line':
+                        print(path.stem)
 
+
+print("===")
 print(counte_article)
+print("SupplNote: ", supplnote)
+print("===")
+print(counter)
+
 
 # current_law_id = {}
 # for path in XML_DIR.rglob('*.xml'):
