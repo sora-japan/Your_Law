@@ -22,51 +22,37 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
             result.append(chunk)
             continue
         paragraph_num = paragraph.get('Num')
-        for item in paragraph.findall('Item'):
-            chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item)
-            if chunk:
-                chunk['article_num'] = article_num
-                chunk['paragraph_num'] = paragraph_num
-                result.append(chunk)
-                continue
-            else:
+        items = paragraph.findall('Item')
+        if items:
+            for item in items:
+                chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item)
+                if chunk:
+                    chunk['article_num'] = article_num
+                    chunk['paragraph_num'] = paragraph_num
+                    result.append(chunk)
+                    continue
                 text = normalization_text(extract_text(item))
-                start_index = 0
-                length = len(text)
-                while start_index < length:
-                    if length - start_index <= CHUNK_THRESHOLD:
-                        result.append({
-                            'level': 'Item',
-                            'article_num': article_num,
-                            'paragraph_num': paragraph_num,
-                            'item_num': item.get('Num'),
-                            'text': text[start_index:]
-                        })
-                        break
-                    long_text = text[start_index: start_index + CHUNK_THRESHOLD]
-                    targets = ['。', '、']
-                    chunk_indexs = [long_text.rfind(t) for t in targets]
-                    for chunk_index in chunk_indexs:
-                        if -1 != chunk_index:
-                            result.append({
-                                'level': 'Item',
-                                'article_num': article_num,
-                                'paragraph_num': paragraph_num,
-                                'item_num': item.get('Num'),
-                                'text': text[start_index: start_index + chunk_index + 1]
-                            })
-                            start_index += chunk_index + 1
-                            break
-                    else:
-                        result.append({
-                            'level': 'Item',
-                            'article_num': article_num,
-                            'paragraph_num': paragraph_num,
-                            'item_num': item.get('Num'),
-                            'text': text[start_index: start_index + CHUNK_THRESHOLD]
-                        })
-                        start_index += CHUNK_THRESHOLD
+                for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
+                    result.append({
+                        'level': 'Split',
+                        'article_num': article_num,
+                        'paragraph_num': paragraph_num,
+                        'item_num': item.get('Num'),
+                        'text': split_text,
+                        'split_index': i
+                    })
+        else:
+            text = normalization_text(extract_text(paragraph))
+            for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
+                result.append({
+                    'level': 'Split',
+                    'article_num': article_num,
+                    'paragraph_num': paragraph_num,
+                    'text': split_text,
+                    'split_index': i
+                })
     return result
+
 
 def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element) -> dict | None:
     text = normalization_text(extract_text(element))
@@ -108,5 +94,9 @@ if __name__ == '__main__':
             chunk_result.extend(xml_chunking(CHUNK_THRESHOLD, article))
     print(chunk_result)
 
-    print(split_by_threshold(100, "あ。"*305))
-    print([len(p) for p in split_by_threshold(100, "あ。"*305)])
+    from collections import Counter
+    print(Counter(c['level'] for c in chunk_result))
+
+    for c in chunk_result:
+        if c['article_num'] == '22' and c.get('paragraph_num') == '1':
+            print(c['level'], c.get('split_index'), c['text'][:50])
