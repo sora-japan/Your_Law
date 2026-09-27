@@ -3,10 +3,10 @@ from src.ingestion.text_extraction import extract_text, normalization_text
 import pathlib
 from collections import Counter
 
-BASE_DIR = pathlib.Path(__file__).parent
-XML_FILE = BASE_DIR / 'all_xml'
+BACKEND_DIR = pathlib.Path(__file__).parent.parent.parent
+XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
 CHUNK_THRESHOLD = 1000
-# LEVELS = ['Article', 'Paragraph', 'Item']
+MIN_RATIO = 0.5
 
 def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
     result = []
@@ -66,7 +66,6 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
     result = []
     start_index = 0
     length = len(text)
-    MIN_RATIO = 0.5
     while start_index < length:
         if length - start_index <= CHUNK_THRESHOLD:
             result.append(text[start_index:])
@@ -86,17 +85,19 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
 
 
 if __name__ == '__main__':
-    chunk_result = []
-    for path in BASE_DIR.rglob('335M50000400013_*.xml'):
-        root = ET.parse(path).getroot()
-        main = root.find('LawBody').find('MainProvision')
-        for article in main.iter('Article'):
-            chunk_result.extend(xml_chunking(CHUNK_THRESHOLD, article))
-    print(chunk_result)
-
     from collections import Counter
-    print(Counter(c['level'] for c in chunk_result))
 
-    for c in chunk_result:
-        if c['article_num'] == '22' and c.get('paragraph_num') == '1':
-            print(c['level'], c.get('split_index'), c['text'][:50])
+    for threshold in [200, 500, 1000, 2000]:
+        chunk_result = []
+        for path in XML_DIR.rglob('*.xml'):
+            root = ET.parse(path).getroot()
+            main = root.find('LawBody').find('MainProvision')
+            for article in main.iter('Article'):
+                chunk_result.extend(xml_chunking(threshold, article))
+        print(Counter(c['level'] for c in chunk_result))
+        total_chars = sum(len(c['text']) for c in chunk_result)
+        print(total_chars)
+
+    # for c in chunk_result:
+    #     if c['article_num'] == '22' and c.get('paragraph_num') == '1':
+    #         print(c['level'], c.get('split_index'), c['text'][:50])
