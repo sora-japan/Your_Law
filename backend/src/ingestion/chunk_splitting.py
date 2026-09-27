@@ -86,17 +86,30 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
 
 if __name__ == '__main__':
     from collections import Counter
+    import difflib
 
-    for threshold in [200, 500, 1000, 2000]:
-        chunk_result = []
-        for path in XML_DIR.rglob('*.xml'):
-            root = ET.parse(path).getroot()
-            main = root.find('LawBody').find('MainProvision')
-            for article in main.iter('Article'):
-                chunk_result.extend(xml_chunking(threshold, article))
-        print(Counter(c['level'] for c in chunk_result))
-        total_chars = sum(len(c['text']) for c in chunk_result)
-        print(total_chars)
+    # for threshold in [200, 500, 1000, 2000]:
+    chunk_result = []
+    for path in XML_DIR.rglob('335M50000400013_*.xml'):
+        root = ET.parse(path).getroot()
+        main = root.find('LawBody').find('MainProvision')
+        for article in main.iter('Article'):
+            if article.get('Num') != '22':
+                continue
+            # chunk_result.extend(xml_chunking(threshold, article))
+            original = normalization_text(extract_text(article))
+            chunks = xml_chunking(1000, article)
+            joined = ''.join(c['text'] for c in chunks)
+            # if len(original) != len(joined):
+            #     print(article.get('Num'), len(original), len(joined))
+            sm = difflib.SequenceMatcher(None, original, joined)
+            for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                if tag != 'equal':
+                    print(tag, repr(original[i1:i2]), '→', repr(joined[j1:j2]))
+
+    # print(Counter(c['level'] for c in chunk_result))
+    # total_chars = sum(len(c['text']) for c in chunk_result)
+    # print(total_chars)
 
     # for c in chunk_result:
     #     if c['article_num'] == '22' and c.get('paragraph_num') == '1':
