@@ -93,13 +93,11 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
             start_index += CHUNK_THRESHOLD
     return result
 
-
-file_name_list = []
-chunk_result = []
-for path in XML_DIR.rglob('335M50000400013_*.xml'):
+def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]:
+    chunk_result = []
     root = ET.parse(path).getroot()
     body = root.find('LawBody')
-    main = body.find('MainProvision')
+    main = body.find('MainProvision') if body is not None else None
     law_title_text = get_child_text(body, 'LawTitle')
     law_num_text = root.findtext('LawNum') or ''
     file_name = path.stem
@@ -117,16 +115,20 @@ for path in XML_DIR.rglob('335M50000400013_*.xml'):
         'is_current': is_current,
         'is_extract': is_extract
     }
-    for article in main.iter('Article'):
-        for chunk in xml_chunking(CHUNK_THRESHOLD, article):
-            chunk.update(law_meta)
-            chunk['provision'] = '本則'
-            chunk_result.append(chunk)
-    print(chunk_result[0])
+    if main is not None:
+        for article in main.iter('Article'):
+            for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+                chunk.update(law_meta)
+                chunk['provision'] = '本則'
+                chunk_result.append(chunk)
+    return chunk_result
 
 
-
-# if __name__ == '__main__':
+if __name__ == '__main__':
+    all_chunks = []
+    for path in XML_DIR.rglob('335M50000400013_*.xml'):
+        all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+    print(all_chunks[0])
 #     chunk_result = []
 #     for path in XML_DIR.rglob('*.xml'):
 #         root = ET.parse(path).getroot()
