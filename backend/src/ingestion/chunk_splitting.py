@@ -3,6 +3,7 @@ from src.ingestion.text_extraction import extract_text, normalization_text
 import pathlib
 from collections import Counter
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 BACKEND_DIR = pathlib.Path(__file__).parent.parent.parent
 XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
@@ -102,7 +103,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
     law_num_text = root.findtext('LawNum') or ''
     file_name = path.stem
     file_name_list = file_name.split('_')
-    today_str = datetime.now().strftime('%Y%m%d')
+    today_str = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
     is_current = file_name_list[1] <= today_str
     is_extract = (main.get('Extract') == 'true')
     law_meta = {
@@ -125,15 +126,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
 
 
 if __name__ == '__main__':
-    all_chunks = []
-    for path in XML_DIR.rglob('335M50000400013_*.xml'):
-        all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
-    print(all_chunks[0])
-#     chunk_result = []
-#     for path in XML_DIR.rglob('*.xml'):
-#         root = ET.parse(path).getroot()
-#         main = root.find('LawBody').find('MainProvision')
-#         for article in main.iter('Article'):
-#     for chunk in xml_chunking(CHUNK_THRESHOLD, article):
-#         chunk.update(law_meta)
-#         chunk_result.append(chunk)
+    # all_chunks = []
+    # for path in XML_DIR.rglob('335M50000400013_*.xml'):
+    #     all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+    # print(all_chunks[0])
