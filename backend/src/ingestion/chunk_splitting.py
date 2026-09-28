@@ -93,17 +93,42 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
     return result
 
 
-if __name__ == '__main__':
+law_meta = {
+    'law_id': ...,
+    'law_revision_id': ...,
+    'law_title': ...,
+    'law_num': ...,
+    'enforce_date': ...,
+}
+file_name_list = []
+chunk_result = []
+for path in XML_DIR.rglob('335M50000400013_*.xml'):
+    root = ET.parse(path).getroot()
+    law_title_text = root.findtext('LawBody/LawTitle') or ''
+    law_num_text = root.findtext('LawNum') or ''
+    main = root.find('LawBody').find('MainProvision')
+    file_name = path.stem
+    file_name_list = file_name.split('_')
+    law_meta.update(
+        law_id=file_name_list[0],
+        law_revision_id=file_name,
+        law_title=law_title_text,
+        law_num=law_num_text,
+        enforce_date=file_name_list[1]
+    )
+    for article in main.iter('Article'):
+        for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+            chunk.update(law_meta)
+            chunk_result.append(chunk)
+    print(law_meta)
 
-    chunk_result = []
-    for path in XML_DIR.rglob('*.xml'):
-        root = ET.parse(path).getroot()
-        main = root.find('LawBody').find('MainProvision')
-        for article in main.iter('Article'):
-            chunk_result.extend(xml_chunking(CHUNK_THRESHOLD, article))
 
-    for c in chunk_result[:20]:
-        print(c['level'], c['text'][:40])
-    # for c in chunk_result:
-    #     if c['level'] == 'Paragraph':
-    #         print(c.get('num'), c['text'][:30], '...', c['text'][-30:])
+# if __name__ == '__main__':
+#     chunk_result = []
+#     for path in XML_DIR.rglob('*.xml'):
+#         root = ET.parse(path).getroot()
+#         main = root.find('LawBody').find('MainProvision')
+#         for article in main.iter('Article'):
+#     for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+#         chunk.update(law_meta)
+#         chunk_result.append(chunk)
