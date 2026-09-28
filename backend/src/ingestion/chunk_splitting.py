@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from src.ingestion.text_extraction import extract_text, normalization_text
 import pathlib
 from collections import Counter
+from datetime import datetime
 
 BACKEND_DIR = pathlib.Path(__file__).parent.parent.parent
 XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
@@ -60,7 +61,7 @@ def get_child_text(element: ET.Element, tag: str) -> str:
     child = element.find(tag)
     if child is None:
         return ''
-    return normalization_text(extract_text(element))
+    return normalization_text(extract_text(child))
 
 
 def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element) -> dict | None:
@@ -93,34 +94,36 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
     return result
 
 
-law_meta = {
-    'law_id': ...,
-    'law_revision_id': ...,
-    'law_title': ...,
-    'law_num': ...,
-    'enforce_date': ...,
-}
 file_name_list = []
 chunk_result = []
 for path in XML_DIR.rglob('335M50000400013_*.xml'):
     root = ET.parse(path).getroot()
-    law_title_text = root.findtext('LawBody/LawTitle') or ''
+    body = root.find('LawBody')
+    main = body.find('MainProvision')
+    law_title_text = get_child_text(body, 'LawTitle')
     law_num_text = root.findtext('LawNum') or ''
-    main = root.find('LawBody').find('MainProvision')
     file_name = path.stem
     file_name_list = file_name.split('_')
-    law_meta.update(
-        law_id=file_name_list[0],
-        law_revision_id=file_name,
-        law_title=law_title_text,
-        law_num=law_num_text,
-        enforce_date=file_name_list[1]
-    )
+    today_str = datetime.now().strftime('%Y%m%d')
+    is_current = file_name_list[1] <= today_str
+    is_extract = (main.get('Extract') == 'true')
+    law_meta = {
+        'law_id': file_name_list[0],
+        'law_revision_id': file_name,
+        'amend_law_id': file_name_list[2],
+        'law_title': law_title_text,
+        'law_num': law_num_text,
+        'enforce_date': file_name_list[1],
+        'is_current': is_current,
+        'is_extract': is_extract
+    }
     for article in main.iter('Article'):
         for chunk in xml_chunking(CHUNK_THRESHOLD, article):
             chunk.update(law_meta)
+            chunk['provision'] = '本則'
             chunk_result.append(chunk)
-    print(law_meta)
+    print(chunk_result[0])
+
 
 
 # if __name__ == '__main__':
