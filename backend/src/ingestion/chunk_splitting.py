@@ -12,12 +12,14 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
     result = []
     text = normalization_text(extract_text(element))
     article_num = element.get('Num')
+    article_heading = get_child_text(element, 'ArticleCaption') + get_child_text(element, 'ArticleTitle')
     if len(text) <= CHUNK_THRESHOLD:
         result.append({'level': 'Article', 'article_num': article_num, 'text': text})
         return result
     for paragraph in element.findall('Paragraph'):
         chunk = try_chunk(CHUNK_THRESHOLD, 'Paragraph', paragraph)
         if chunk:
+            chunk['text'] = article_heading + chunk['text']
             chunk['article_num'] = article_num
             result.append(chunk)
             continue
@@ -27,11 +29,12 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
             for item in items:
                 chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item)
                 if chunk:
+                    chunk['text'] = article_heading + chunk['text']
                     chunk['article_num'] = article_num
                     chunk['paragraph_num'] = paragraph_num
                     result.append(chunk)
                     continue
-                text = normalization_text(extract_text(item))
+                text = article_heading + normalization_text(extract_text(item))
                 for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
                     result.append({
                         'level': 'Split',
@@ -42,7 +45,7 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
                         'split_index': i
                     })
         else:
-            text = normalization_text(extract_text(paragraph))
+            text = article_heading + normalization_text(extract_text(paragraph))
             for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
                 result.append({
                     'level': 'Split',
@@ -52,6 +55,12 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
                     'split_index': i
                 })
     return result
+
+def get_child_text(element: ET.Element, tag: str) -> str:
+    child = element.find(tag)
+    if child is None:
+        return ''
+    return normalization_text(extract_text(element))
 
 
 def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element) -> dict | None:
@@ -85,32 +94,16 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
 
 
 if __name__ == '__main__':
-    from collections import Counter
-    import difflib
 
-    # for threshold in [200, 500, 1000, 2000]:
     chunk_result = []
-    for path in XML_DIR.rglob('335M50000400013_*.xml'):
+    for path in XML_DIR.rglob('*.xml'):
         root = ET.parse(path).getroot()
         main = root.find('LawBody').find('MainProvision')
         for article in main.iter('Article'):
-            if article.get('Num') != '22':
-                continue
-            # chunk_result.extend(xml_chunking(threshold, article))
-            original = normalization_text(extract_text(article))
-            chunks = xml_chunking(1000, article)
-            joined = ''.join(c['text'] for c in chunks)
-            # if len(original) != len(joined):
-            #     print(article.get('Num'), len(original), len(joined))
-            sm = difflib.SequenceMatcher(None, original, joined)
-            for tag, i1, i2, j1, j2 in sm.get_opcodes():
-                if tag != 'equal':
-                    print(tag, repr(original[i1:i2]), '→', repr(joined[j1:j2]))
+            chunk_result.extend(xml_chunking(CHUNK_THRESHOLD, article))
 
-    # print(Counter(c['level'] for c in chunk_result))
-    # total_chars = sum(len(c['text']) for c in chunk_result)
-    # print(total_chars)
-
+    for c in chunk_result[:20]:
+        print(c['level'], c['text'][:40])
     # for c in chunk_result:
-    #     if c['article_num'] == '22' and c.get('paragraph_num') == '1':
-    #         print(c['level'], c.get('split_index'), c['text'][:50])
+    #     if c['level'] == 'Paragraph':
+    #         print(c.get('num'), c['text'][:30], '...', c['text'][-30:])
