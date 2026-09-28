@@ -7,23 +7,44 @@ from collections import Counter
 BASE_DIR = pathlib.Path(__file__).parent.parent
 XML_DIR = BASE_DIR / "data" / "all_xml"
 
-counte = Counter()
-list_file = ""
-tablestruct_file = ""
-amendprovision_file = ""
+dist = Counter()
+max_text = 0
 for path in XML_DIR.rglob('*.xml'):
     root = ET.parse(path).getroot()
-    article = root.find('LawBody').find('MainProvision')
-    for article in article.iter('Article'):
-        for para in article.iter('Paragraph'):
-            for child in para:
-                counte[child.tag] += 1
-                if child.tag == "List":
-                    list_file = path.stem
-                if child.tag == "TableStruct":
-                    tablestruct_file = path.stem
-                if child.tag == "AmendProvision":
-                    amendprovision_file = path.stem
+    body = root.find('LawBody')
+    for suppl in body.findall('SupplProvision'):
+        text = normalization_text(extract_text(suppl))
+        length = len(text)
+        if length <= 200:
+            dist["~200"] += 1
+        elif length <= 500:
+            dist["201 ~ 500"] += 1
+        elif length <= 1000:
+            dist["501 ~ 1000"] += 1
+        elif length <= 2000:
+            dist["1001 ~ 2000"] += 1
+        elif length <= 5000:
+            dist["2001 ~ 5000"] += 1
+        elif length <= 8000:
+            dist["5001~8000"] += 1
+        elif length > 8000:
+            dist["8001 ~ "] += 1
+        if length > max_text:
+            max_text = length
+print(dist)
+print(max_text)
+
+#     article = root.find('LawBody').find('MainProvision')
+#     for article in article.iter('Article'):
+#         for para in article.iter('Paragraph'):
+#             for child in para:
+#                 counte[child.tag] += 1
+#                 if child.tag == "List":
+#                     list_file = path.stem
+#                 if child.tag == "TableStruct":
+#                     tablestruct_file = path.stem
+#                 if child.tag == "AmendProvision":
+#                     amendprovision_file = path.stem
     # for article in main.iter('Article'):
     #     for child_article in article:
     #         counte_article[child_article.tag] += 1
@@ -35,13 +56,13 @@ for path in XML_DIR.rglob('*.xml'):
     #                 if grandchild.tag == 'Line':
     #                     print(path.stem)
 
-print(counte)
-print("===")
-print(list_file)
-print("===")
-print(tablestruct_file)
-print("===")
-print(amendprovision_file)
+# print(counte)
+# print("===")
+# print(list_file)
+# print("===")
+# print(tablestruct_file)
+# print("===")
+# print(amendprovision_file)
 
 # current_law_id = {}
 # for path in XML_DIR.rglob('*.xml'):
