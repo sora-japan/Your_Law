@@ -122,11 +122,20 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                 chunk.update(law_meta)
                 chunk['provision'] = '本則'
                 chunk_result.append(chunk)
+
+    if body is not None:
+        for suppl in body.findall('SupplProvision'):
+            for article in suppl.findall('.//Article'):
+                for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+                    chunk.update(law_meta)
+                    chunk['provision'] = '附則'
+                    chunk['amend_law_num'] = suppl.attrib.get('AmendLawNum')
+                    chunk_result.append(chunk)
     return chunk_result
 
 
 if __name__ == '__main__':
-    # all_chunks = []
-    # for path in XML_DIR.rglob('335M50000400013_*.xml'):
-    #     all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
-    # print(all_chunks[0])
+    all_chunks = []
+    for path in XML_DIR.rglob('335M50000400013_*.xml'):
+        all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+    print(all_chunks)
