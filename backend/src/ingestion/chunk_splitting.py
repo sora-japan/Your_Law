@@ -13,7 +13,7 @@ MIN_RATIO = 0.5
 def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
     result = []
     text = normalization_text(extract_text(element))
-    article_num = element.get('Num')
+    article_num = element.get('Num', '')
     article_heading = get_child_text(element, 'ArticleCaption') + get_child_text(element, 'ArticleTitle')
     if len(text) <= CHUNK_THRESHOLD:
         result.append({'level': 'Article', 'article_num': article_num, 'text': text})
@@ -25,7 +25,7 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
             chunk['article_num'] = article_num
             result.append(chunk)
             continue
-        paragraph_num = paragraph.get('Num')
+        paragraph_num = paragraph.get('Num', '')
         items = paragraph.findall('Item')
         if items:
             for item in items:
@@ -42,7 +42,7 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
                         'level': 'Split',
                         'article_num': article_num,
                         'paragraph_num': paragraph_num,
-                        'item_num': item.get('Num'),
+                        'item_num': item.get('Num', ''),
                         'text': split_text,
                         'split_index': i
                     })
@@ -58,6 +58,49 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
                 })
     return result
 
+
+def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num: str = '', article_heading: str = '') -> list[dict]:
+    result = []
+    chunk = try_chunk(CHUNK_THRESHOLD, 'Paragraph', paragraph)
+    if chunk:
+        chunk['text'] = article_heading + chunk['text']
+        chunk['article_num'] = article_num
+        result.append(chunk)
+        return result
+    paragraph_num = paragraph.get('Num', '')
+    items = paragraph.findall('Item')
+    if items:
+        for item in items:
+            chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item)
+            if chunk:
+                chunk['text'] = article_heading + chunk['text']
+                chunk['article_num'] = article_num
+                chunk['paragraph_num'] = paragraph_num
+                result.append(chunk)
+                continue
+            text = article_heading + normalization_text(extract_text(item))
+            for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
+                result.append({
+                    'level': 'Split',
+                    'article_num': article_num,
+                    'paragraph_num': paragraph_num,
+                    'item_num': item.get('Num', ''),
+                    'text': split_text,
+                    'split_index': i
+                })
+    else:
+        text = article_heading + normalization_text(extract_text(paragraph))
+        for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
+            result.append({
+                'level': 'Split',
+                'article_num': article_num,
+                'paragraph_num': paragraph_num,
+                'text': split_text,
+                'split_index': i
+            })
+    return result
+
+
 def get_child_text(element: ET.Element, tag: str) -> str:
     child = element.find(tag)
     if child is None:
@@ -68,7 +111,7 @@ def get_child_text(element: ET.Element, tag: str) -> str:
 def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element) -> dict | None:
     text = normalization_text(extract_text(element))
     if len(text) <= CHUNK_THRESHOLD:
-        return {'level': level, 'num': element.get('Num'), 'text': text}
+        return {'level': level, 'num': element.get('Num', ''), 'text': text}
     else:
         return None
 
