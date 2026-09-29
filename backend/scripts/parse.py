@@ -9,6 +9,7 @@ XML_DIR = BASE_DIR / "data" / "all_xml"
 
 dist = Counter()
 max_text = 0
+file = []
 for path in XML_DIR.rglob('*.xml'):
     root = ET.parse(path).getroot()
     body = root.find('LawBody')
@@ -17,6 +18,7 @@ for path in XML_DIR.rglob('*.xml'):
         length = len(text)
         if length <= 200:
             dist["~200"] += 1
+            file.append(path.stem)
         elif length <= 500:
             dist["201 ~ 500"] += 1
         elif length <= 1000:
@@ -33,6 +35,8 @@ for path in XML_DIR.rglob('*.xml'):
             max_text = length
 print(dist)
 print(max_text)
+print("===")
+print(file)
 
 #     article = root.find('LawBody').find('MainProvision')
 #     for article in article.iter('Article'):
