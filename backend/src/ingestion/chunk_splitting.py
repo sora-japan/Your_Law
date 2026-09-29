@@ -1,7 +1,6 @@
 import xml.etree.ElementTree as ET
 from src.ingestion.text_extraction import extract_text, normalization_text
 import pathlib
-from collections import Counter
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -9,6 +8,7 @@ BACKEND_DIR = pathlib.Path(__file__).parent.parent.parent
 XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
 CHUNK_THRESHOLD = 1000
 MIN_RATIO = 0.5
+
 
 def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
     result = []
@@ -19,43 +19,7 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
         result.append({'level': 'Article', 'article_num': article_num, 'text': text})
         return result
     for paragraph in element.findall('Paragraph'):
-        chunk = try_chunk(CHUNK_THRESHOLD, 'Paragraph', paragraph)
-        if chunk:
-            chunk['text'] = article_heading + chunk['text']
-            chunk['article_num'] = article_num
-            result.append(chunk)
-            continue
-        paragraph_num = paragraph.get('Num', '')
-        items = paragraph.findall('Item')
-        if items:
-            for item in items:
-                chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item)
-                if chunk:
-                    chunk['text'] = article_heading + chunk['text']
-                    chunk['article_num'] = article_num
-                    chunk['paragraph_num'] = paragraph_num
-                    result.append(chunk)
-                    continue
-                text = article_heading + normalization_text(extract_text(item))
-                for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
-                    result.append({
-                        'level': 'Split',
-                        'article_num': article_num,
-                        'paragraph_num': paragraph_num,
-                        'item_num': item.get('Num', ''),
-                        'text': split_text,
-                        'split_index': i
-                    })
-        else:
-            text = article_heading + normalization_text(extract_text(paragraph))
-            for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
-                result.append({
-                    'level': 'Split',
-                    'article_num': article_num,
-                    'paragraph_num': paragraph_num,
-                    'text': split_text,
-                    'split_index': i
-                })
+        result.extend(paragraph_chunking(CHUNK_THRESHOLD, paragraph, article_num, article_heading))
     return result
 
 
@@ -137,6 +101,7 @@ def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
             start_index += CHUNK_THRESHOLD
     return result
 
+
 def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]:
     chunk_result = []
     root = ET.parse(path).getroot()
@@ -148,7 +113,9 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
     file_name_list = file_name.split('_')
     today_str = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
     is_current = file_name_list[1] <= today_str
-    is_extract = (main.get('Extract') == 'true')
+    is_extract = False
+    if main is not None:
+        is_extract = (main.get('Extract') == 'true')
     law_meta = {
         'law_id': file_name_list[0],
         'law_revision_id': file_name,
@@ -160,24 +127,42 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
         'is_extract': is_extract
     }
     if main is not None:
-        for article in main.iter('Article'):
-            for chunk in xml_chunking(CHUNK_THRESHOLD, article):
-                chunk.update(law_meta)
-                chunk['provision'] = '本則'
-                chunk_result.append(chunk)
-
-    if body is not None:
-        for suppl in body.findall('SupplProvision'):
-            for article in suppl.findall('.//Article'):
+        articles = main.findall('.//Article')
+        if articles:
+            for article in articles:
                 for chunk in xml_chunking(CHUNK_THRESHOLD, article):
                     chunk.update(law_meta)
-                    chunk['provision'] = '附則'
-                    chunk['amend_law_num'] = suppl.attrib.get('AmendLawNum')
+                    chunk['provision'] = '本則'
                     chunk_result.append(chunk)
+        else:
+            for paragraph in main.findall('Paragraph'):
+                for chunk in paragraph_chunking(CHUNK_THRESHOLD, paragraph):
+                    chunk.update(law_meta)
+                    chunk['provision'] = '本則'
+                    chunk_result.append(chunk)
+    if body is not None:
+        for suppl in body.findall('SupplProvision'):
+            amend_law_num = suppl.get('AmendLawNum', '')
+            articles = suppl.findall('.//Article')
+            if articles:
+                for article in articles:
+                    for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+                        chunk.update(law_meta)
+                        chunk['provision'] = '附則'
+                        chunk['amend_law_num'] = amend_law_num
+                        chunk_result.append(chunk)
+            else:
+                for paragraph in suppl.findall('Paragraph'):
+                    for chunk in paragraph_chunking(CHUNK_THRESHOLD, paragraph):
+                        chunk.update(law_meta)
+                        chunk['provision'] = '附則'
+                        chunk['amend_law_num'] = amend_law_num
+                        chunk_result.append(chunk)
     return chunk_result
 
 
 if __name__ == '__main__':
+    from collections import Counter
     all_chunks = []
     for path in XML_DIR.rglob('335M50000400013_*.xml'):
         all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
