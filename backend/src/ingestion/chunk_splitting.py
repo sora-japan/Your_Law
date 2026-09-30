@@ -106,7 +106,9 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
     chunk_result = []
     root = ET.parse(path).getroot()
     body = root.find('LawBody')
-    main = body.find('MainProvision') if body is not None else None
+    if body is None:
+        return chunk_result
+    main = body.find('MainProvision')
     law_title_text = get_child_text(body, 'LawTitle')
     law_num_text = root.findtext('LawNum') or ''
     file_name = path.stem
@@ -140,24 +142,23 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                     chunk.update(law_meta)
                     chunk['provision'] = '本則'
                     chunk_result.append(chunk)
-    if body is not None:
-        for suppl in body.findall('SupplProvision'):
-            amend_law_num = suppl.get('AmendLawNum', '')
-            articles = suppl.findall('.//Article')
-            if articles:
-                for article in articles:
-                    for chunk in xml_chunking(CHUNK_THRESHOLD, article):
-                        chunk.update(law_meta)
-                        chunk['provision'] = '附則'
-                        chunk['amend_law_num'] = amend_law_num
-                        chunk_result.append(chunk)
-            else:
-                for paragraph in suppl.findall('Paragraph'):
-                    for chunk in paragraph_chunking(CHUNK_THRESHOLD, paragraph):
-                        chunk.update(law_meta)
-                        chunk['provision'] = '附則'
-                        chunk['amend_law_num'] = amend_law_num
-                        chunk_result.append(chunk)
+    for suppl in body.findall('SupplProvision'):
+        amend_law_num = suppl.get('AmendLawNum', '')
+        articles = suppl.findall('.//Article')
+        if articles:
+            for article in articles:
+                for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+                    chunk.update(law_meta)
+                    chunk['provision'] = '附則'
+                    chunk['amend_law_num'] = amend_law_num
+                    chunk_result.append(chunk)
+        else:
+            for paragraph in suppl.findall('Paragraph'):
+                for chunk in paragraph_chunking(CHUNK_THRESHOLD, paragraph):
+                    chunk.update(law_meta)
+                    chunk['provision'] = '附則'
+                    chunk['amend_law_num'] = amend_law_num
+                    chunk_result.append(chunk)
     return chunk_result
 
 
@@ -166,4 +167,5 @@ if __name__ == '__main__':
     all_chunks = []
     for path in XML_DIR.rglob('335M50000400013_*.xml'):
         all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
-    print(all_chunks)
+    print(Counter(c['provision'] for c in all_chunks))
+    print(Counter(c['level'] for c in all_chunks))
