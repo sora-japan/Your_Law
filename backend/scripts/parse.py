@@ -7,36 +7,57 @@ from collections import Counter
 BASE_DIR = pathlib.Path(__file__).parent.parent
 XML_DIR = BASE_DIR / "data" / "all_xml"
 
-dist = Counter()
-max_text = 0
-file = []
+ex_counter = Counter()
+type_counter = Counter()
+ex_list = []
+true_length = []
+false_length = []
+true_sample = []
 for path in XML_DIR.rglob('*.xml'):
     root = ET.parse(path).getroot()
     body = root.find('LawBody')
     for suppl in body.findall('SupplProvision'):
-        text = normalization_text(extract_text(suppl))
-        length = len(text)
-        if length <= 200:
-            dist["~200"] += 1
-            file.append(path.stem)
-        elif length <= 500:
-            dist["201 ~ 500"] += 1
-        elif length <= 1000:
-            dist["501 ~ 1000"] += 1
-        elif length <= 2000:
-            dist["1001 ~ 2000"] += 1
-        elif length <= 5000:
-            dist["2001 ~ 5000"] += 1
-        elif length <= 8000:
-            dist["5001~8000"] += 1
-        elif length > 8000:
-            dist["8001 ~ "] += 1
-        if length > max_text:
-            max_text = length
-print(dist)
-print(max_text)
-print("===")
-print(file)
+        type_counter[suppl.get('Type', "no_type")] += 1
+        ex_list = suppl.get('Extract')
+        ex_counter[ex_list] += 1
+        text= normalization_text(extract_text(suppl))
+        text_len = len(text)
+        if ex_list == 'true':
+            true_length.append(text_len)
+            if len(true_sample) < 5:
+                true_sample.append({'file': path.stem, 'text': text[:100]})
+        else:
+            false_length.append(text_len)
+
+print('typeの分布: ', type_counter)
+print('extract: ', ex_counter)
+print('trueの文字数: ', sum(true_length))
+print('falseの文字数: ', sum(false_length))
+print('trueのサンプル: ', true_sample)
+
+#         text = normalization_text(extract_text(suppl))
+#         length = len(text)
+#         if length <= 200:
+#             dist["~200"] += 1
+#             file.append(path.stem)
+#         elif length <= 500:
+#             dist["201 ~ 500"] += 1
+#         elif length <= 1000:
+#             dist["501 ~ 1000"] += 1
+#         elif length <= 2000:
+#             dist["1001 ~ 2000"] += 1
+#         elif length <= 5000:
+#             dist["2001 ~ 5000"] += 1
+#         elif length <= 8000:
+#             dist["5001~8000"] += 1
+#         elif length > 8000:
+#             dist["8001 ~ "] += 1
+#         if length > max_text:
+#             max_text = length
+# print(dist)
+# print(max_text)
+# print("===")
+# print(file)
 
 #     article = root.find('LawBody').find('MainProvision')
 #     for article in article.iter('Article'):
