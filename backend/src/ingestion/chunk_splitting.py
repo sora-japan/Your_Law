@@ -162,6 +162,8 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                     chunk['amend_law_num'] = amend_law_num
                     chunk['suppl_is_extract'] = suppl_is_extract
                     chunk_result.append(chunk)
+    for i, chunk in enumerate(chunk_result):
+        chunk['chunk_id'] = f'{file_name}#{i}'
     return chunk_result
 
 
@@ -182,10 +184,8 @@ if __name__ == '__main__':
             current_paths[parts[0]] = (parts[1], path)
     for law_id, (enforce_date, path) in current_paths.items():
         all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
-    key_sets = Counter(tuple(sorted(c.keys())) for c in all_chunks)
-    print(len(key_sets))
-    for keys, count in key_sets.most_common():
-        print(count, keys)
+    ids = [chunk['chunk_id'] for chunk in all_chunks]
+    print(len(ids), len(set(ids)))
     # start = time.perf_counter()
     # end = time.perf_counter()
     # level_counter = Counter()
