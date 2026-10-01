@@ -144,6 +144,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                     chunk_result.append(chunk)
     for suppl in body.findall('SupplProvision'):
         amend_law_num = suppl.get('AmendLawNum', '')
+        suppl_is_extract = (suppl.get('Extract') == 'true')
         articles = suppl.findall('.//Article')
         if articles:
             for article in articles:
@@ -151,6 +152,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                     chunk.update(law_meta)
                     chunk['provision'] = '附則'
                     chunk['amend_law_num'] = amend_law_num
+                    chunk['suppl_is_extract'] = suppl_is_extract
                     chunk_result.append(chunk)
         else:
             for paragraph in suppl.findall('Paragraph'):
@@ -158,14 +160,26 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                     chunk.update(law_meta)
                     chunk['provision'] = '附則'
                     chunk['amend_law_num'] = amend_law_num
+                    chunk['suppl_is_extract'] = suppl_is_extract
                     chunk_result.append(chunk)
     return chunk_result
 
 
 if __name__ == '__main__':
     from collections import Counter
+    import time
     all_chunks = []
-    for path in XML_DIR.rglob('335M50000400013_*.xml'):
+    start = time.perf_counter()
+    for path in XML_DIR.rglob('*.xml'):
         all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+    end = time.perf_counter()
+    for c in all_chunks:
+        if c['provision'] == '附則':
+            print(c['is_extract'], c['suppl_is_extract'], c['amend_law_num'])
+            break
+    has_amend = sum(1 for c in all_chunks if c.get('amend_law_num'))
+    print('amend_law_num あり:', has_amend)
     print(Counter(c['provision'] for c in all_chunks))
     print(Counter(c['level'] for c in all_chunks))
+    print('総数:', len(all_chunks))
+    print('処理時間を計測: ', '{:.2f}'.format((end-start)))
