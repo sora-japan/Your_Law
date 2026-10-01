@@ -25,7 +25,7 @@ def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
 
 def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num: str = '', article_heading: str = '') -> list[dict]:
     result = []
-    chunk = try_chunk(CHUNK_THRESHOLD, 'Paragraph', paragraph)
+    chunk = try_chunk(CHUNK_THRESHOLD, 'Paragraph', paragraph, 'paragraph_num')
     if chunk:
         chunk['text'] = article_heading + chunk['text']
         chunk['article_num'] = article_num
@@ -35,7 +35,7 @@ def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num:
     items = paragraph.findall('Item')
     if items:
         for item in items:
-            chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item)
+            chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item, 'item_num')
             if chunk:
                 chunk['text'] = article_heading + chunk['text']
                 chunk['article_num'] = article_num
@@ -72,10 +72,10 @@ def get_child_text(element: ET.Element, tag: str) -> str:
     return normalization_text(extract_text(child))
 
 
-def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element) -> dict | None:
+def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element, num_key: str) -> dict | None:
     text = normalization_text(extract_text(element))
     if len(text) <= CHUNK_THRESHOLD:
-        return {'level': level, 'num': element.get('Num', ''), 'text': text}
+        return {'level': level, num_key: element.get('Num', ''), 'text': text}
     else:
         return None
 
@@ -173,7 +173,6 @@ if __name__ == '__main__':
 
     all_chunks = []
     today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
-    start = time.perf_counter()
     current_paths = {}
     for path in XML_DIR.rglob('*.xml'):
         parts = path.stem.split('_')
@@ -183,12 +182,17 @@ if __name__ == '__main__':
             current_paths[parts[0]] = (parts[1], path)
     for law_id, (enforce_date, path) in current_paths.items():
         all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
-    end = time.perf_counter()
-    level_counter = Counter()
-    provision_counter = Counter()
-    for c in all_chunks:
-        level_counter[c.get('level')] += 1
-        provision_counter[c.get('provision')] += 1
-    print(level_counter)
-    print(provision_counter)
-    print('処理時間を計測: ', '{:.2f}'.format((end-start)))
+    key_sets = Counter(tuple(sorted(c.keys())) for c in all_chunks)
+    print(len(key_sets))
+    for keys, count in key_sets.most_common():
+        print(count, keys)
+    # start = time.perf_counter()
+    # end = time.perf_counter()
+    # level_counter = Counter()
+    # provision_counter = Counter()
+    # for c in all_chunks:
+    #     level_counter[c.get('level')] += 1
+    #     provision_counter[c.get('provision')] += 1
+    # print(level_counter)
+    # print(provision_counter)
+    # print('処理時間を計測: ', '{:.2f}'.format((end-start)))
