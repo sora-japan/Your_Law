@@ -168,18 +168,27 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
 if __name__ == '__main__':
     from collections import Counter
     import time
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
     all_chunks = []
+    today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
     start = time.perf_counter()
+    current_paths = {}
     for path in XML_DIR.rglob('*.xml'):
+        parts = path.stem.split('_')
+        if parts[1] > today:
+            continue
+        if parts[0] not in current_paths or parts[1] > current_paths[parts[0]][0]:
+            current_paths[parts[0]] = (parts[1], path)
+    for law_id, (enforce_date, path) in current_paths.items():
         all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
     end = time.perf_counter()
+    level_counter = Counter()
+    provision_counter = Counter()
     for c in all_chunks:
-        if c['provision'] == '附則':
-            print(c['is_extract'], c['suppl_is_extract'], c['amend_law_num'])
-            break
-    has_amend = sum(1 for c in all_chunks if c.get('amend_law_num'))
-    print('amend_law_num あり:', has_amend)
-    print(Counter(c['provision'] for c in all_chunks))
-    print(Counter(c['level'] for c in all_chunks))
-    print('総数:', len(all_chunks))
+        level_counter[c.get('level')] += 1
+        provision_counter[c.get('provision')] += 1
+    print(level_counter)
+    print(provision_counter)
     print('処理時間を計測: ', '{:.2f}'.format((end-start)))
