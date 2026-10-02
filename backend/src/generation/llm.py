@@ -2,6 +2,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import time
 import psutil
 import torch
+import re
 
 def get_memory_usage():
     # 物理メモリ(RAM)消費量(GB換算)
@@ -22,35 +23,59 @@ model = AutoModelForCausalLM.from_pretrained(
     local_files_only=True,
 ).to('mps') # Apple SiliconのGPUを使用する
 
-text = "日本の首都は"
+prompt = "日本の民法における「契約」の成立要件について、簡潔に説明してください。"
+chat = [
+    # これがないと、英語で回答しちゃう
+    {
+        "role": "system",
+        # "content": "あなたは日本の法律の専門家です。思考プロセス（<think>～</think>内）も含め、すべての出力を日本語で行ってください。"
+        "content": "あなたは優秀な法的アシスタントです。思考プロセス（<think>）を出力せず、質問に対する明確な回答本文のみを直接日本語で出力してください。"
+    },
+    {"role": "user", "content": prompt}
+]
+start = time.perf_counter()
+
+tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt").to(model.device)
+generated_ids = model.generate(
+    **tokenized_input,
+    max_new_tokens=512,
+    do_sample=True,
+    temperature=0.7,
+    top_p=0.5
+)
+
+end = time.perf_counter()
+output_ids = generated_ids[0][len(tokenized_input['input_ids'][0]):]
+output_text = tokenizer.decode(output_ids, skip_special_tokens=True)# decode側でskipするので、回答精度などは問題ない
+clean_text = re.sub(r'<think>.*?</think>', '', output_text, flags=re.DOTALL).strip()
+print(clean_text)
 
 load_ram, load_mps = get_memory_usage()
 print(f"モデルロード後: RAM={load_ram:.2f}GB, MPS={load_mps:.2f}GB")
 
-encoded_input = tokenizer(text, return_tensors='pt').to(model.device)
-start = time.perf_counter()
-output = model.generate(
-    **encoded_input,
-    max_new_tokens=128, # 生成するトークンの最大数
-    do_sample=True, # Trueに設定すると、「Multinomial Sampling」「Beam-Search Multinomial Sampling」「Top-K Sampling」「Top-p Sampling」などの戦略を有効にします。
-    temperature=0.7,
-    top_p=0.5,
-)
-
-end = time.perf_counter()
-print("===")
 seconds = end - start
 print(f"処理時間：{seconds}秒")
-print(tokenizer.decode(output[0]))
-print("===encoded_input 出力結果===")
-print("全体のトークン数: ", len(output[0]))
-print("入力のトークン数: ", len(encoded_input['input_ids'][0]))
-generate_token = len(output[0]) - len(encoded_input['input_ids'][0])
-print("生成されたトークン数: ", generate_token)
-print("１秒あたりに生成されたトークン: ", generate_token / seconds)
-
 gen_ram, gen_mps = get_memory_usage()
 print(f"生成終了後: RAM={gen_ram:.2f}GB, MPS={gen_mps:.2f}GB")
+
+# encoded_input = tokenizer(text, return_tensors='pt').to(model.device)
+# output = model.generate(
+#     **encoded_input,
+#     max_new_tokens=128, # 生成するトークンの最大数
+#     do_sample=True, # Trueに設定すると、「Multinomial Sampling」「Beam-Search Multinomial Sampling」「Top-K Sampling」「Top-p Sampling」などの戦略を有効にします。
+#     temperature=0.7,
+#     top_p=0.5,
+# )
+# 
+# print("===")
+# print(tokenizer.decode(output[0]))
+# print("===encoded_input 出力結果===")
+# print("全体のトークン数: ", len(output[0]))
+# print("入力のトークン数: ", len(encoded_input['input_ids'][0]))
+# generate_token = len(output[0]) - len(encoded_input['input_ids'][0])
+# print("生成されたトークン数: ", generate_token)
+# print("１秒あたりに生成されたトークン: ", generate_token / seconds)
+
 
 
 # text = "日本の首都は"
