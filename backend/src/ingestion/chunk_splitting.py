@@ -126,7 +126,8 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
         'law_num': law_num_text,
         'enforce_date': file_name_list[1],
         'is_current': is_current,
-        'is_extract': is_extract
+        'is_extract': is_extracut,
+        'suppl_is_extract': False,
     }
     if main is not None:
         articles = main.findall('.//Article')
