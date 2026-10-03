@@ -89,7 +89,20 @@ w_time = w_end - w_start
 print(w_time)
 
 for config in configs:
-    config_dict = {k: v for k, v in config.items() if k != "name" and v is not None}
+    config_dict = {} 
+    for k, v in config.items():
+        if k == "name":
+            continue
+        if v is None:
+            if k == "temperature":
+                v = 1.0
+            elif k == "top_p":
+                v = 1.0
+            elif k == "top_k":
+                v = 0
+            elif k == "repetition_penalty":
+                v = 1.0
+        config_dict.update({k: v})
     streamer = TimingStreamer()
     start = time.perf_counter()
     streamer.start_time = start
@@ -116,8 +129,8 @@ for config in configs:
     speed = get_token / latency
 
     data_raw = [
-        config.get('name', ''), config.get('do_sample', ''), config.get('temperature', ''),
-        config.get('top_p', ''), config.get('top_k', ''), config.get('repetition_penalty', ''),
+        config.get('name', ''), config_dict.get('do_sample', ''), config_dict.get('temperature', ''),
+        config_dict.get('top_p', ''), config_dict.get('top_k', ''), config_dict.get('repetition_penalty', ''),
         round(ttft_ms, 1), round(tpot, 1), round(latency, 2), round(speed, 1),
         get_token, round(load_ram, 2), round(load_mps, 2), clean_text,
     ]
