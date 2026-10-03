@@ -48,7 +48,7 @@ init_ram, init_mps = get_memory_usage()
 print(f"初期状態: RAM={init_ram:.2f}GB, MPS={init_mps:.2f}GB")
 
 temperatures = [0.2, None]
-top_ps = [0.5]
+top_ps = [-1]#[0.5]
 top_ks = [50]
 rep_penalies = [1.1]
 
@@ -121,12 +121,29 @@ for config in configs:
     streamer = TimingStreamer(think_end_id)
     start = time.perf_counter()
     streamer.start_time = start
-    generated_ids = model.generate(
-        **tokenized_input,
-        max_new_tokens=MAX_NEW_TOKENS,
-        streamer=streamer,
-        **config_dict
-    )
+    try:
+        generated_ids = model.generate(
+            **tokenized_input,
+            max_new_tokens=MAX_NEW_TOKENS,
+            streamer=streamer,
+            **config_dict
+        )
+    except Exception as e:
+        end = time.perf_counter()
+        error_message = f"ERROR: {type(e)}: {e}"
+        error_row = [
+            config.get('name', ''), config_dict.get('do_sample', ''), config_dict.get('temperature', ''),
+            config_dict.get('top_p', ''), config_dict.get('top_k', ''), config_dict.get('repetition_penalty', ''),
+            "", "", "", round(end - start, 2), "", "", "", "",
+            "", "", "", error_message,
+        ]
+        with open ('llm_benchmark.csv', 'a', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow(error_row)
+        print(f"===エラー=== {config.get('name', '')}")
+        print(error_message)
+        torch.mps.empty_cache()
+        continue
     end = time.perf_counter()
     load_ram, load_mps = get_memory_usage()
 
