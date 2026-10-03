@@ -3,19 +3,34 @@ from transformers.generation.streamers import BaseStreamer
 import time
 import psutil
 import torch
-import re
 from itertools import product
 import csv
 
+MAX_NEW_TOKENS = 4096
+
 class TimingStreamer(BaseStreamer):
-    def __init__(self):
+    def __init__(self, think_end_id):
         self.start_time = 0.0
         self.ttft = 0.0
         self.token_counter = 0
+        self.ttfo = None
+        self.think_end_id = think_end_id
+        self.think_flag = False
+        self.think_token_counter = 0
 
     def put(self, value):
+        if self.token_counter == 0:
+            self.token_counter += 1
+            return
+        now = time.perf_counter()
+        token_id = value.item()
         if self.token_counter == 1:
-            self.ttft = time.perf_counter() - self.start_time
+            self.ttft = now - self.start_time
+        if self.think_flag and self.ttfo is None:
+            self.ttfo = now - self.start_time
+        if token_id == self.think_end_id:
+            self.think_flag = True
+            self.think_token_counter = self.token_counter
         self.token_counter += 1
 
     def end(self):
@@ -69,19 +84,21 @@ chat = [
 
 header = [
     "Name", "do_sample","temperature", "Top_p", "Top_k", "Repetition Penalty",
-    "TTFT(ms)", "TPOT(ms)", "Latency(s)", "Speed(tok/s)",
-    "Tokens", "RAM(GB)", "MPS(GB)", "Text"
+    "TTFT(ms)", "TPOT(ms)", "TTFO(s)", "Latency(s)", "Total Tokens", "Think Tokens", "Answer Tokens", "Speed(tok/s)",
+    "Hit Limit", "RAM(GB)", "MPS(GB)", "Text"
 ]
 with open('llm_benchmark.csv', 'w', encoding='utf-8-sig') as f:
     writer = csv.writer(f)
     writer.writerow(header)
 
 tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True).to(model.device)
+think_end_id = tokenizer.convert_tokens_to_ids("</think>")
+print(think_end_id)
 # ウォームアップ
 w_start = time.perf_counter()
 _ = model.generate(
     **tokenized_input,
-    max_new_tokens=256,
+    max_new_tokens=64,
     do_sample=False
 )
 w_end = time.perf_counter()
@@ -94,21 +111,17 @@ for config in configs:
         if k == "name":
             continue
         if v is None:
-            if k == "temperature":
-                v = 1.0
-            elif k == "top_p":
+            if k in ("temperature", "top_p", "repetition_penalty"):
                 v = 1.0
             elif k == "top_k":
                 v = 0
-            elif k == "repetition_penalty":
-                v = 1.0
         config_dict.update({k: v})
-    streamer = TimingStreamer()
+    streamer = TimingStreamer(think_end_id)
     start = time.perf_counter()
     streamer.start_time = start
     generated_ids = model.generate(
         **tokenized_input,
-        max_new_tokens=4096,
+        max_new_tokens=MAX_NEW_TOKENS,
         streamer=streamer,
         **config_dict
     )
@@ -116,23 +129,31 @@ for config in configs:
     load_ram, load_mps = get_memory_usage()
 
     output_ids = generated_ids[0][len(tokenized_input['input_ids'][0]):]
-    output_text = tokenizer.decode(output_ids, skip_special_tokens=True)# decode側でskipするので、回答精度には影響しない
-    clean_text = re.sub(r'<think>.*?</think>', '', output_text, flags=re.DOTALL).strip()
+    total_token = len(output_ids)
+
+    hit_limit = total_token >= MAX_NEW_TOKENS
+    if streamer.think_flag:
+        think_tokens = streamer.think_token_counter
+        answer_ids = output_ids[think_tokens:]
+        clean_text = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+    else:
+        think_tokens = total_token
+        clean_text = "(思考の途中で上限に到達)"
+    answer_tokens = total_token - think_tokens
     latency = end - start
     ttft = streamer.ttft
     ttft_ms = ttft * 1000
-    get_token = len(output_ids)
-    if get_token > 1:
-        tpot = ((latency - ttft) / (get_token - 1)) * 1000
+    if total_token > 1:
+        tpot = ((latency - ttft) / (total_token - 1)) * 1000
     else:
         tpot = 0.0
-    speed = get_token / latency
-
+    speed = total_token / latency
+    ttfo = round(streamer.ttfo, 2) if streamer.ttfo is not None else ""
     data_raw = [
         config.get('name', ''), config_dict.get('do_sample', ''), config_dict.get('temperature', ''),
         config_dict.get('top_p', ''), config_dict.get('top_k', ''), config_dict.get('repetition_penalty', ''),
-        round(ttft_ms, 1), round(tpot, 1), round(latency, 2), round(speed, 1),
-        get_token, round(load_ram, 2), round(load_mps, 2), clean_text,
+        round(ttft_ms, 1), round(tpot, 1), ttfo, round(latency, 2), total_token, think_tokens, answer_tokens, round(speed, 1),
+        hit_limit, round(load_ram, 2), round(load_mps, 2), clean_text,
     ]
     with open ('llm_benchmark.csv', 'a', encoding='utf-8-sig') as f:
         writer = csv.writer(f)
@@ -144,6 +165,8 @@ for config in configs:
     print(f"TTFT: {ttft_ms:.1f}ms")
     print(f"TPOT: {tpot:.1f}ms")
     print(f"Speed: {speed:.1f}tok/s")# １秒間に何トークン出せるか
+    print(f"TTFO: {ttfo}s")
+    print(f"think token: {think_tokens}")
     print("===テキスト=== ")
     print(clean_text)
     torch.mps.empty_cache()
