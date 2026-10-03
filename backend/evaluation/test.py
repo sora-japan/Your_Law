@@ -14,7 +14,7 @@ class TimingStreamer(BaseStreamer):
         self.token_counter = 0
 
     def put(self, value):
-        if self.token_counter == 0:
+        if self.token_counter == 1:
             self.ttft = time.perf_counter() - self.start_time
         self.token_counter += 1
 
@@ -38,14 +38,14 @@ top_ks = [50]
 rep_penalies = [1.1]
 
 configs = [{"name": "Greedy", "do_sample": False}]
-for temp, p, k, rep_penalies in product(temperatures, top_ps, top_ks, rep_penalies):
+for temp, p, k, rep_pen in product(temperatures, top_ps, top_ks, rep_penalies):
     configs.append({
-        "name": f"temperature: {temp}, top_p: {p}, top_k: {k}, repetition_penalty: {rep_penalies}",
+        "name": f"temperature: {temp}, top_p: {p}, top_k: {k}, repetition_penalty: {rep_pen}",
         "do_sample": True,
         "temperature": temp,
         "top_p": p,
         "top_k": k,
-        "repetition_penalty": rep_penalies
+        "repetition_penalty": rep_pen
     })
 
 
@@ -57,7 +57,7 @@ model = AutoModelForCausalLM.from_pretrained(
     local_files_only=True,
 ).to('mps') # Apple SiliconのGPUを使用する
 
-prompt = "日本の民法における「契約」の成立要件について、簡潔に説明してください。"
+prompt = "訪問販売で契約した場合、クーリング・オフは何日以内にできますか。"
 chat = [
     # これがないと、英語で回答してしまう
     {
@@ -77,6 +77,17 @@ with open('llm_benchmark.csv', 'w', encoding='utf-8-sig') as f:
     writer.writerow(header)
 
 tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True).to(model.device)
+# ウォームアップ
+w_start = time.perf_counter()
+_ = model.generate(
+    **tokenized_input,
+    max_new_tokens=256,
+    do_sample=False
+)
+w_end = time.perf_counter()
+w_time = w_end - w_start
+print(w_time)
+
 for config in configs:
     config_dict = {k: v for k, v in config.items() if k != "name" and v is not None}
     streamer = TimingStreamer()
@@ -122,6 +133,7 @@ for config in configs:
     print(f"Speed: {speed:.1f}tok/s")# １秒間に何トークン出せるか
     print("===テキスト=== ")
     print(clean_text)
+    torch.mps.empty_cache()
 
 
 gen_ram, gen_mps = get_memory_usage()
