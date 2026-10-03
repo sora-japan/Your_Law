@@ -1,8 +1,40 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
+from transformers.generation.streamers import BaseStreamer
 import time
 import psutil
 import torch
-import re
+from itertools import product
+import csv
+
+MAX_NEW_TOKENS = 4096
+
+class TimingStreamer(BaseStreamer):
+    def __init__(self, think_end_id):
+        self.start_time = 0.0
+        self.ttft = 0.0
+        self.token_counter = 0
+        self.ttfo = None
+        self.think_end_id = think_end_id
+        self.think_flag = False
+        self.think_token_counter = 0
+
+    def put(self, value):
+        if self.token_counter == 0:
+            self.token_counter += 1
+            return
+        now = time.perf_counter()
+        token_id = value.item()
+        if self.token_counter == 1:
+            self.ttft = now - self.start_time
+        if self.think_flag and self.ttfo is None:
+            self.ttfo = now - self.start_time
+        if token_id == self.think_end_id:
+            self.think_flag = True
+            self.think_token_counter = self.token_counter
+        self.token_counter += 1
+
+    def end(self):
+        pass
 
 
 def get_memory_usage():
@@ -15,14 +47,22 @@ def get_memory_usage():
 init_ram, init_mps = get_memory_usage()
 print(f"初期状態: RAM={init_ram:.2f}GB, MPS={init_mps:.2f}GB")
 
-configs = [
-    {"do_sample": False},
-    {"do_sample": True, "temperature": 0.2},
-    {"do_sample": True, "temperature": 0.7},
-    {"do_sample": True, "temperature": 1.0},
-    {"do_sample": True, "temperature": 1.0, "top_p": 0.5},
-    {"do_sample": True, "temperature": 1.0, "top_p": 0.9},
-]
+
+temperatures = [0.2, 0.7, 1.0, None]
+top_ps = [0.5, 0.9, None]
+top_ks = [10, 50, 100, None]
+rep_penalies = [0.9, 1.1, 1.3, None]
+
+configs = [{"name": "Greedy", "do_sample": False}]
+for temp, p, k, rep_pen in product(temperatures, top_ps, top_ks, rep_penalies):
+    configs.append({
+        "name": f"temperature: {temp}, top_p: {p}, top_k: {k}, repetition_penalty: {rep_pen}",
+        "do_sample": True,
+        "temperature": temp,
+        "top_p": p,
+        "top_k": k,
+        "repetition_penalty": rep_pen
+    })
 
 
 model_name = "Qwen/Qwen3-8B"
@@ -33,91 +73,118 @@ model = AutoModelForCausalLM.from_pretrained(
     local_files_only=True,
 ).to('mps') # Apple SiliconのGPUを使用する
 
-prompt = "日本の民法における「契約」の成立要件について、簡潔に説明してください。"
+prompt = "訪問販売で契約した場合、クーリング・オフは何日以内にできますか。"
 chat = [
     # これがないと、英語で回答してしまう
     {
         "role": "system",
-        # "content": "あなたは日本の法律の専門家です。思考プロセス（<think>～</think>内）も含め、すべての出力を日本語で行ってください。"
         "content": "あなたは優秀な法的アシスタントです。質問に対する明確な回答本文のみを直接日本語で出力してください。"
     },
     {"role": "user", "content": prompt}
 ]
 
-tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt").to(model.device)
+header = [
+    "Name", "do_sample","temperature", "Top_p", "Top_k", "Repetition Penalty",
+    "TTFT(ms)", "TPOT(ms)", "TTFO(s)", "Latency(s)", "Total Tokens", "Think Tokens", "Answer Tokens", "Speed(tok/s)",
+    "Hit Limit", "RAM(GB)", "MPS(GB)", "Text"
+]
+with open('llm_benchmark.csv', 'w', encoding='utf-8-sig') as f:
+    writer = csv.writer(f)
+    writer.writerow(header)
+
+tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True).to(model.device)
+think_end_id = tokenizer.convert_tokens_to_ids("</think>")
+# ウォームアップ
+_ = model.generate(
+    **tokenized_input,
+    max_new_tokens=64,
+    do_sample=False
+)
+
 for config in configs:
-    config_dict = {k: v for k, v in config.items()}
+    set_seed(42)
+    config_dict = {} 
+    for k, v in config.items():
+        if k == "name":
+            continue
+        if v is None:
+            if k in ("temperature", "top_p", "repetition_penalty"):
+                v = 1.0
+            elif k == "top_k":
+                v = 0
+        config_dict.update({k: v})
+    streamer = TimingStreamer(think_end_id)
     start = time.perf_counter()
-    generated_ids = model.generate(
-        **tokenized_input,
-        max_new_tokens=512,
-        **config_dict
-    )
-    load_ram, load_mps = get_memory_usage()
+    streamer.start_time = start
+    try:
+        generated_ids = model.generate(
+            **tokenized_input,
+            max_new_tokens=MAX_NEW_TOKENS,
+            streamer=streamer,
+            **config_dict
+        )
+    except Exception as e:
+        end = time.perf_counter()
+        error_message = f"ERROR: {type(e)}: {e}"
+        error_row = [
+            config.get('name', ''), config_dict.get('do_sample', ''), config_dict.get('temperature', ''),
+            config_dict.get('top_p', ''), config_dict.get('top_k', ''), config_dict.get('repetition_penalty', ''),
+            "", "", "", round(end - start, 2), "", "", "", "",
+            "", "", "", error_message,
+        ]
+        with open ('llm_benchmark.csv', 'a', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow(error_row)
+        print(f"===エラー=== {config.get('name', '')}")
+        print(error_message)
+        torch.mps.empty_cache()
+        continue
     end = time.perf_counter()
+    load_ram, load_mps = get_memory_usage()
 
     output_ids = generated_ids[0][len(tokenized_input['input_ids'][0]):]
-    output_text = tokenizer.decode(output_ids, skip_special_tokens=True)# decode側でskipするので、回答精度には影響しない
-    clean_text = re.sub(r'<think>.*?</think>', '', output_text, flags=re.DOTALL).strip()
-    seconds = end - start
+    total_token = len(output_ids)
+
+    hit_limit = total_token >= MAX_NEW_TOKENS
+    if streamer.think_flag:
+        think_tokens = streamer.think_token_counter
+        answer_ids = output_ids[think_tokens:]
+        clean_text = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+    else:
+        think_tokens = total_token
+        clean_text = "(思考の途中で上限に到達)"
+    answer_tokens = total_token - think_tokens
+    latency = end - start
+    ttft = streamer.ttft
+    ttft_ms = ttft * 1000
+    if total_token > 1:
+        tpot = ((latency - ttft) / (total_token - 1)) * 1000
+    else:
+        tpot = 0.0
+    speed = total_token / latency
+    ttfo = round(streamer.ttfo, 2) if streamer.ttfo is not None else ""
+    data_raw = [
+        config.get('name', ''), config_dict.get('do_sample', ''), config_dict.get('temperature', ''),
+        config_dict.get('top_p', ''), config_dict.get('top_k', ''), config_dict.get('repetition_penalty', ''),
+        round(ttft_ms, 1), round(tpot, 1), ttfo, round(latency, 2), total_token, think_tokens, answer_tokens, round(speed, 1),
+        hit_limit, round(load_ram, 2), round(load_mps, 2), clean_text,
+    ]
+    with open ('llm_benchmark.csv', 'a', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(data_raw)
 
     print("===RAM・MPS / 処理時間=== ")
     print(f"モデルロード後: RAM={load_ram:.2f}GB, MPS={load_mps:.2f}GB")
-    print(f"処理時間：{seconds}秒")
+    print(f"処理時間(レイテンシ)：{latency}秒")
+    print(f"TTFT: {ttft_ms:.1f}ms")
+    print(f"TPOT: {tpot:.1f}ms")
+    print(f"Speed: {speed:.1f}tok/s")# １秒間に何トークン出せるか
+    print(f"TTFO: {ttfo}s")
+    print(f"think token: {think_tokens}")
     print("===テキスト=== ")
     print(clean_text)
+    torch.mps.empty_cache()
 
 
 gen_ram, gen_mps = get_memory_usage()
 print(f"生成終了後: RAM={gen_ram:.2f}GB, MPS={gen_mps:.2f}GB")
-
-
-# ------
-
-# encoded_input = tokenizer(text, return_tensors='pt').to(model.device)
-# output = model.generate(
-#     **encoded_input,
-#     max_new_tokens=128, # 生成するトークンの最大数
-#     do_sample=True, # Trueに設定すると、「Multinomial Sampling」「Beam-Search Multinomial Sampling」「Top-K Sampling」「Top-p Sampling」などの戦略を有効にします。
-#     temperature=0.7,
-#     top_p=0.5,
-# )
-# 
-# print("===")
-# print(tokenizer.decode(output[0]))
-# print("===encoded_input 出力結果===")
-# print("全体のトークン数: ", len(output[0]))
-# print("入力のトークン数: ", len(encoded_input['input_ids'][0]))
-# generate_token = len(output[0]) - len(encoded_input['input_ids'][0])
-# print("生成されたトークン数: ", generate_token)
-# print("１秒あたりに生成されたトークン: ", generate_token / seconds)
-
-
-
-# text = "日本の首都は"
-# print(text)
-# token_ids = tokenizer.encode(text)
-# print(token_ids)
-# for token_id in token_ids:
-#     print(f"{token_id}: {repr(tokenizer.decode([token_id]))}")
-
-# text = tokenizer.encode("大規模言語モデル")
-# for token_id in text:
-#     print(f"{token_id}: {repr(tokenizer.decode([token_id]))}")
-# 
-# print(tokenizer.vocab_size)
-# 
-# print(tokenizer.decode([0]))
-# print(tokenizer.decode([50256]))
-# 
-# # Token embeddings
-# token_id = 0
-# print(tokenizer.decode([token_id]))
-# embedding_table = model.get_input_embeddings().weight
-# single_token_embedding = embedding_table[token_id]
-# print(single_token_embedding.shape)
-# print(single_token_embedding)
-# 
-# print("======")
-# print(embedding_table)
-
