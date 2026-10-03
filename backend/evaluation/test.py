@@ -1,9 +1,24 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.generation.streamers import BaseStreamer
 import time
 import psutil
 import torch
 import re
 from itertools import product
+
+class TimingStreamer(BaseStreamer):
+    def __init__(self):
+        self.start_time = 0.0
+        self.ttft = 0.0
+        self.token_counter = 0
+
+    def put(self, value):
+        if self.token_counter == 0:
+            self.ttft = time.perf_counter() - self.start_time
+        self.token_counter += 1
+
+    def end(self):
+        pass
 
 
 def get_memory_usage():
@@ -20,7 +35,7 @@ temperatures = [0.2, None]
 top_ps = [0.5, None]
 
 configs = [{"name": "Greedy", "do_sample": False}]
-for temp, p, in product(temperatures, top_ps):
+for temp, p in product(temperatures, top_ps):
     configs.append({
         "name": f"temperature: {temp}, top_p: {p}",
         "do_sample": True,
@@ -50,23 +65,34 @@ chat = [
 tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True).to(model.device)
 for config in configs:
     config_dict = {k: v for k, v in config.items() if k != "name" and v is not None}
+    streamer = TimingStreamer()
     start = time.perf_counter()
+    streamer.start_time = start
     generated_ids = model.generate(
         **tokenized_input,
         max_new_tokens=4096,
+        streamer=streamer,
         **config_dict
     )
-    load_ram, load_mps = get_memory_usage()
     end = time.perf_counter()
+    load_ram, load_mps = get_memory_usage()
 
     output_ids = generated_ids[0][len(tokenized_input['input_ids'][0]):]
     output_text = tokenizer.decode(output_ids, skip_special_tokens=True)# decode側でskipするので、回答精度には影響しない
     clean_text = re.sub(r'<think>.*?</think>', '', output_text, flags=re.DOTALL).strip()
-    seconds = end - start
+    latency = end - start
+    ttft = streamer.ttft
+    get_token = len(output_ids)
+    if get_token > 1:
+        tpot = ((latency - ttft) / (get_token - 1)) * 1000
+    else:
+        tpot = 0.0
 
     print("===RAM・MPS / 処理時間=== ")
     print(f"モデルロード後: RAM={load_ram:.2f}GB, MPS={load_mps:.2f}GB")
-    print(f"処理時間：{seconds}秒")
+    print(f"処理時間(レイテンシ)：{latency}秒")
+    print(f"TTFT: {ttft:.3f}秒")
+    print(f"TPOT: {tpot:.1f}ms")
     print("===テキスト=== ")
     print(clean_text)
 
