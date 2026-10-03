@@ -5,6 +5,7 @@ import psutil
 import torch
 import re
 from itertools import product
+import csv
 
 class TimingStreamer(BaseStreamer):
     def __init__(self):
@@ -32,15 +33,19 @@ init_ram, init_mps = get_memory_usage()
 print(f"初期状態: RAM={init_ram:.2f}GB, MPS={init_mps:.2f}GB")
 
 temperatures = [0.2, None]
-top_ps = [0.5, None]
+top_ps = [0.5]
+top_ks = [50]
+rep_penalies = [1.1]
 
 configs = [{"name": "Greedy", "do_sample": False}]
-for temp, p in product(temperatures, top_ps):
+for temp, p, k, rep_penalies in product(temperatures, top_ps, top_ks, rep_penalies):
     configs.append({
-        "name": f"temperature: {temp}, top_p: {p}",
+        "name": f"temperature: {temp}, top_p: {p}, top_k: {k}, repetition_penalty: {rep_penalies}",
         "do_sample": True,
         "temperature": temp,
         "top_p": p,
+        "top_k": k,
+        "repetition_penalty": rep_penalies
     })
 
 
@@ -62,6 +67,15 @@ chat = [
     {"role": "user", "content": prompt}
 ]
 
+header = [
+    "Name", "do_sample","temperature", "Top_p", "Top_k", "Repetition Penalty",
+    "TTFT(ms)", "TPOT(ms)", "Latency(s)", "Speed(tok/s)",
+    "Tokens", "RAM(GB)", "MPS(GB)", "Text"
+]
+with open('llm_benchmark.csv', 'w', encoding='utf-8-sig') as f:
+    writer = csv.writer(f)
+    writer.writerow(header)
+
 tokenized_input = tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=True, return_tensors="pt", return_dict=True).to(model.device)
 for config in configs:
     config_dict = {k: v for k, v in config.items() if k != "name" and v is not None}
@@ -82,17 +96,30 @@ for config in configs:
     clean_text = re.sub(r'<think>.*?</think>', '', output_text, flags=re.DOTALL).strip()
     latency = end - start
     ttft = streamer.ttft
+    ttft_ms = ttft * 1000
     get_token = len(output_ids)
     if get_token > 1:
         tpot = ((latency - ttft) / (get_token - 1)) * 1000
     else:
         tpot = 0.0
+    speed = get_token / latency
+
+    data_raw = [
+        config.get('name', ''), config.get('do_sample', ''), config.get('temperature', ''),
+        config.get('top_p', ''), config.get('top_k', ''), config.get('repetition_penalty', ''),
+        round(ttft_ms, 1), round(tpot, 1), round(latency, 2), round(speed, 1),
+        get_token, round(load_ram, 2), round(load_mps, 2), clean_text,
+    ]
+    with open ('llm_benchmark.csv', 'a', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(data_raw)
 
     print("===RAM・MPS / 処理時間=== ")
     print(f"モデルロード後: RAM={load_ram:.2f}GB, MPS={load_mps:.2f}GB")
     print(f"処理時間(レイテンシ)：{latency}秒")
-    print(f"TTFT: {ttft:.3f}秒")
+    print(f"TTFT: {ttft_ms:.1f}ms")
     print(f"TPOT: {tpot:.1f}ms")
+    print(f"Speed: {speed:.1f}tok/s")# １秒間に何トークン出せるか
     print("===テキスト=== ")
     print(clean_text)
 
