@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 from transformers.generation.streamers import BaseStreamer
 import time
 import psutil
@@ -51,6 +51,7 @@ temperatures = [0.2, None]
 top_ps = [0.5]
 top_ks = [50]
 rep_penalies = [1.1]
+
 
 configs = [{"name": "Greedy", "do_sample": False}]
 for temp, p, k, rep_pen in product(temperatures, top_ps, top_ks, rep_penalies):
@@ -106,6 +107,7 @@ w_time = w_end - w_start
 print(w_time)
 
 for config in configs:
+    set_seed(42)
     config_dict = {} 
     for k, v in config.items():
         if k == "name":
