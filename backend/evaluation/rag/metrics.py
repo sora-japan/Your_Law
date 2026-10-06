@@ -3,11 +3,7 @@ def is_match(gold: dict, retrieved_meta: dict) -> bool:
     law_id_match = (gold.get('law_id') == retrieved_meta.get('law_id'))
     provision_match = (gold.get('provision') == retrieved_meta.get('provision'))
     article_num_match = (gold.get('article_num') == retrieved_meta.get('article_num'))
-    if law_id_match and provision_match and article_num_match:
-        return True
-    else:
-        return False
-
+    return law_id_match and provision_match and article_num_match
 
 # 検索してきたリストと、正解データを比べて一致するものがあるか。あれば順位を返し、なければNoneを返す
 def find_rank(gold_list: list[dict], retrieved_list: list[dict], k: int) -> int | None:
@@ -18,12 +14,29 @@ def find_rank(gold_list: list[dict], retrieved_list: list[dict], k: int) -> int 
     return None
 
 
+def reciprocal_rank(rank: int | None) -> float:
+    if rank is None:
+        return 0.0
+    return 1.0 / rank
+
+# MRRを計算する関数
+def calculate_mrr(rr_list: list[float]) -> float:
+    if len(rr_list) == 0:
+        return 0.0
+    return sum(rr_list) / len(rr_list)
+
+# Hit Rate@kを計算する関数
+def calculate_hit_rate(hit_list: list[bool]) -> float:
+    if len(hit_list) == 0:
+        return 0.0
+    return sum(hit_list) / len(hit_list)
+
 if __name__ == '__main__':
     # 正解データ（※複数正解があるケースを想定してリスト化）
     gold_dummy = [
         {"law_id": "123", "provision": "本則", "article_num": "2"}
     ]
-    
+
     # 検索結果パターン1: 1位で正解
     retrieved_1st = [
         {"law_id": "123", "provision": "本則", "article_num": "2"}, # ←1位（正解）
@@ -46,4 +59,3 @@ if __name__ == '__main__':
     
     rank_miss = find_rank(gold_dummy, retrieved_3rd, k=2) 
     print(f"パターン3の順位: {rank_miss}")  # 期待値: None (正解は3位なので弾かれる)
-
