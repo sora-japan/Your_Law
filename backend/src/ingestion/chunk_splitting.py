@@ -126,7 +126,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
         'law_num': law_num_text,
         'enforce_date': file_name_list[1],
         'is_current': is_current,
-        'is_extract': is_extracut,
+        'is_extract': is_extract,
         'suppl_is_extract': False,
     }
     if main is not None:
@@ -168,32 +168,31 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
     return chunk_result
 
 
-if __name__ == '__main__':
-    from collections import Counter
-    import time
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    all_chunks = []
+def find_current_version_paths(xml_dir: pathlib.Path) -> list[pathlib.Path]:
+    """法令IDごとに、施行済みのうち最も新しい施行日のファイルを１つ選ぶ"""
     today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
-    current_paths = {}
-    for path in XML_DIR.rglob('*.xml'):
+    latest = {}
+    for path in xml_dir.rglob('*.xml'):
         parts = path.stem.split('_')
-        if parts[1] > today:
+        law_id = parts[0]
+        enforce_date = parts[1]
+        if enforce_date > today:
             continue
-        if parts[0] not in current_paths or parts[1] > current_paths[parts[0]][0]:
-            current_paths[parts[0]] = (parts[1], path)
-    for law_id, (enforce_date, path) in current_paths.items():
-        all_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
-    ids = [chunk['chunk_id'] for chunk in all_chunks]
-    print(len(ids), len(set(ids)))
-    # start = time.perf_counter()
-    # end = time.perf_counter()
-    # level_counter = Counter()
-    # provision_counter = Counter()
-    # for c in all_chunks:
-    #     level_counter[c.get('level')] += 1
-    #     provision_counter[c.get('provision')] += 1
-    # print(level_counter)
-    # print(provision_counter)
-    # print('処理時間を計測: ', '{:.2f}'.format((end-start)))
+        if law_id not in latest or enforce_date > latest[law_id][0]:
+            latest[law_id] = (enforce_date, path)
+    current_version_paths = [path for _, path in latest.values()]
+    return current_version_paths
+
+
+def load_current_chunks(xml_dir: pathlib.Path, chunk_threshold: int) -> list[dict]:
+    """現行版の全法令をチャンクにして返す"""
+    chunks = []
+    for path in find_current_version_paths(xml_dir):
+        chunks.extend(get_chunks_with_meta(path, chunk_threshold))
+    return chunks
+
+
+if __name__ == '__main__':
+    chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD)
+    print(len(chunks))
+    print(len(find_current_version_paths(XML_DIR)))
