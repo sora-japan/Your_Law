@@ -10,22 +10,34 @@ CHUNK_THRESHOLD = 1000
 MIN_RATIO = 0.5
 
 
-def xml_chunking(CHUNK_THRESHOLD: int, element: ET.Element) -> list[dict]:
+def xml_chunking(chunk_threshold: int, element: ET.Element) -> list[dict]:
+    """条(Article)1件をチャンクのリストにする
+
+    閾値以内なら条のまま1チャンクにし、超える場合だけ項に降りる。
+    降りる時は条見出しを渡し、分割後のチャンクにも見出しが残るようにする。
+    """
     result = []
     text = normalization_text(extract_text(element))
     article_num = element.get('Num', '')
     article_heading = get_child_text(element, 'ArticleCaption') + get_child_text(element, 'ArticleTitle')
-    if len(text) <= CHUNK_THRESHOLD:
+    if len(text) <= chunk_threshold:
         result.append({'level': 'Article', 'article_num': article_num, 'text': text})
         return result
     for paragraph in element.findall('Paragraph'):
-        result.extend(paragraph_chunking(CHUNK_THRESHOLD, paragraph, article_num, article_heading))
+        result.extend(paragraph_chunking(chunk_threshold, paragraph, article_num, article_heading))
     return result
 
 
-def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num: str = '', article_heading: str = '') -> list[dict]:
+def paragraph_chunking(chunk_threshold: int, paragraph: ET.Element, article_num: str = '', article_heading: str = '') -> list[dict]:
+    """項(Paragraph) 1件をチャンクのリストにする。
+
+    閾値以内なら項のまま1チャンク。超えるなら号へ、号でも超えるなら句点分割へ降りる。
+    号を持たない項は句点分割に直接かける。
+    article_num / article_heading は条の情報で、xml_chunking から呼ばれた時だけ渡る。
+    条を持たない法令・附則からは項が直接渡されるため、空文字になる。
+    """
     result = []
-    chunk = try_chunk(CHUNK_THRESHOLD, 'Paragraph', paragraph, 'paragraph_num')
+    chunk = try_chunk(chunk_threshold, 'Paragraph', paragraph, 'paragraph_num')
     if chunk:
         chunk['text'] = article_heading + chunk['text']
         chunk['article_num'] = article_num
@@ -35,7 +47,7 @@ def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num:
     items = paragraph.findall('Item')
     if items:
         for item in items:
-            chunk = try_chunk(CHUNK_THRESHOLD, 'Item', item, 'item_num')
+            chunk = try_chunk(chunk_threshold, 'Item', item, 'item_num')
             if chunk:
                 chunk['text'] = article_heading + chunk['text']
                 chunk['article_num'] = article_num
@@ -43,7 +55,7 @@ def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num:
                 result.append(chunk)
                 continue
             text = article_heading + normalization_text(extract_text(item))
-            for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
+            for i, split_text in enumerate(split_by_threshold(chunk_threshold, text)):
                 result.append({
                     'level': 'Split',
                     'article_num': article_num,
@@ -54,7 +66,7 @@ def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num:
                 })
     else:
         text = article_heading + normalization_text(extract_text(paragraph))
-        for i, split_text in enumerate(split_by_threshold(CHUNK_THRESHOLD, text)):
+        for i, split_text in enumerate(split_by_threshold(chunk_threshold, text)):
             result.append({
                 'level': 'Split',
                 'article_num': article_num,
@@ -66,43 +78,62 @@ def paragraph_chunking(CHUNK_THRESHOLD: int, paragraph: ET.Element, article_num:
 
 
 def get_child_text(element: ET.Element, tag: str) -> str:
+    """直下の子要素 tag のテキストを正規化して返す。子がなければ空文字を返す。"""
     child = element.find(tag)
     if child is None:
         return ''
     return normalization_text(extract_text(child))
 
 
-def try_chunk(CHUNK_THRESHOLD: int, level: str, element: ET.Element, num_key: str) -> dict | None:
+def try_chunk(chunk_threshold: int, level: str, element: ET.Element, num_key: str) -> dict | None:
+    """閾値以内ならチャンクを作って返し、超えていればNoneを返す。
+
+    番号を入れるキー名を num_key で受け取る。Num 属性はlevelによって
+    項番号・号番号として意味が変わるため、共通の num キーには入れない
+    """
     text = normalization_text(extract_text(element))
-    if len(text) <= CHUNK_THRESHOLD:
+    if len(text) <= chunk_threshold:
         return {'level': level, num_key: element.get('Num', ''), 'text': text}
     else:
         return None
 
 
-def split_by_threshold(CHUNK_THRESHOLD: int, text: str) -> list[str]:
+def split_by_threshold(chunk_threshold: int, text: str) -> list[str]:
+    """テキストを閾値以内の断片に分割して返す。
+
+    切れ目は閾値の手前から後ろ向きに探し、「。」を優先、見つからなければ「、」を使う。
+    探索範囲を閾値の MIN_RATIO より後ろに限ることで、極端に短い断片を作らない。
+    どちらも見つからなければ閾値の位置で機械的に切る。
+    """
     result = []
     start_index = 0
     length = len(text)
     while start_index < length:
-        if length - start_index <= CHUNK_THRESHOLD:
+        if length - start_index <= chunk_threshold:
             result.append(text[start_index:])
             break
-        long_text = text[start_index: start_index + CHUNK_THRESHOLD]
+        long_text = text[start_index: start_index + chunk_threshold]
         targets = ['。', '、']
-        chunk_indexs = [long_text.rfind(t, int(CHUNK_THRESHOLD * MIN_RATIO)) for t in targets]
+        chunk_indexs = [long_text.rfind(t, int(chunk_threshold * MIN_RATIO)) for t in targets]
         for chunk_index in chunk_indexs:
-            if -1 != chunk_index:
+            if chunk_index != -1:
                 result.append(text[start_index: start_index + chunk_index + 1])
                 start_index += chunk_index + 1
                 break
         else:
-            result.append(text[start_index: start_index + CHUNK_THRESHOLD])
-            start_index += CHUNK_THRESHOLD
+            result.append(text[start_index: start_index + chunk_threshold])
+            start_index += chunk_threshold
     return result
 
 
-def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]:
+def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int) -> list[dict]:
+    """法令XML 1ファイルを読み、メタデータ付きのチャンクのリストを返す。
+
+    本則(MainProvision)と附則(SupplProvision)を別々に処理し、provisionで区別する。
+    条を持たない法令・附則では、項を単位として処理する。
+    chunk_id は law_revision_id#連番 で版ごとに0から振り直す。
+    LawBody を持たないファイルは空リストを返す。
+    """
     chunk_result = []
     root = ET.parse(path).getroot()
     body = root.find('LawBody')
@@ -133,13 +164,13 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
         articles = main.findall('.//Article')
         if articles:
             for article in articles:
-                for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+                for chunk in xml_chunking(chunk_threshold, article):
                     chunk.update(law_meta)
                     chunk['provision'] = '本則'
                     chunk_result.append(chunk)
         else:
             for paragraph in main.findall('Paragraph'):
-                for chunk in paragraph_chunking(CHUNK_THRESHOLD, paragraph):
+                for chunk in paragraph_chunking(chunk_threshold, paragraph):
                     chunk.update(law_meta)
                     chunk['provision'] = '本則'
                     chunk_result.append(chunk)
@@ -149,7 +180,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
         articles = suppl.findall('.//Article')
         if articles:
             for article in articles:
-                for chunk in xml_chunking(CHUNK_THRESHOLD, article):
+                for chunk in xml_chunking(chunk_threshold, article):
                     chunk.update(law_meta)
                     chunk['provision'] = '附則'
                     chunk['amend_law_num'] = amend_law_num
@@ -157,7 +188,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
                     chunk_result.append(chunk)
         else:
             for paragraph in suppl.findall('Paragraph'):
-                for chunk in paragraph_chunking(CHUNK_THRESHOLD, paragraph):
+                for chunk in paragraph_chunking(chunk_threshold, paragraph):
                     chunk.update(law_meta)
                     chunk['provision'] = '附則'
                     chunk['amend_law_num'] = amend_law_num
@@ -169,7 +200,7 @@ def get_chunks_with_meta(path: pathlib.Path, CHUNK_THRESHOLD: int) -> list[dict]
 
 
 def find_current_version_paths(xml_dir: pathlib.Path) -> list[pathlib.Path]:
-    """法令IDごとに、施行済みのうち最も新しい施行日のファイルを１つ選ぶ"""
+    """法令IDごとに、施行済みのうち最も新しい施行日のファイルを1つ選ぶ"""
     today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
     latest = {}
     for path in xml_dir.rglob('*.xml'):
