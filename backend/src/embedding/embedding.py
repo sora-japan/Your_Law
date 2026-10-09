@@ -1,14 +1,13 @@
 import torch
 from sentence_transformers import SentenceTransformer
 
-DEFAULT_MODEL_NAME = 'cl-nagoya/ruri-v3-310m'
 
 def select_device() -> str:
     """利用可能なデバイスを返す"""
     return 'mps' if torch.backends.mps.is_available() else 'cpu'
 
 
-def load_model(model_name: str = DEFAULT_MODEL_NAME) -> SentenceTransformer:
+def load_model(model_name: str) -> SentenceTransformer:
     """エンべディングモデルの読み込み。初回時はモデルのダウンロードが発生する"""
     return SentenceTransformer(model_name, device=select_device())
 
@@ -25,7 +24,9 @@ def embed_query(model: SentenceTransformer, text: str):
 
 
 if __name__ == '__main__':
-    model = load_model()
+    from src.config import EMBEDDING_MODEL
+
+    model = load_model(EMBEDDING_MODEL)
     doc_vectors = embed_documents(model, ["これは本文です。", "これも本文"])
     query_vector = embed_query(model, "本文について教えてください。")
     print(doc_vectors)

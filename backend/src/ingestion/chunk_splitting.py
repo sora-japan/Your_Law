@@ -1,13 +1,10 @@
 import xml.etree.ElementTree as ET
-from src.ingestion.text_extraction import extract_text, normalization_text
 import pathlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-BACKEND_DIR = pathlib.Path(__file__).parent.parent.parent
-XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
-CHUNK_THRESHOLD = 1000
-MIN_RATIO = 0.5
+from src.ingestion.text_extraction import extract_text, normalization_text
+from src.config import MIN_RATIO
 
 
 def xml_chunking(chunk_threshold: int, element: ET.Element) -> list[dict]:
@@ -98,11 +95,11 @@ def try_chunk(chunk_threshold: int, level: str, element: ET.Element, num_key: st
         return None
 
 
-def split_by_threshold(chunk_threshold: int, text: str) -> list[str]:
+def split_by_threshold(chunk_threshold: int, text: str, min_ratio: float = MIN_RATIO) -> list[str]:
     """テキストを閾値以内の断片に分割して返す。
 
     切れ目は閾値の手前から後ろ向きに探し、「。」を優先、見つからなければ「、」を使う。
-    探索範囲を閾値の MIN_RATIO より後ろに限ることで、極端に短い断片を作らない。
+    探索範囲を閾値の min_ratio より後ろに限ることで、極端に短い断片を作らない。
     どちらも見つからなければ閾値の位置で機械的に切る。
     """
     result = []
@@ -114,7 +111,7 @@ def split_by_threshold(chunk_threshold: int, text: str) -> list[str]:
             break
         long_text = text[start_index: start_index + chunk_threshold]
         targets = ['。', '、']
-        chunk_indexs = [long_text.rfind(t, int(chunk_threshold * MIN_RATIO)) for t in targets]
+        chunk_indexs = [long_text.rfind(t, int(chunk_threshold * min_ratio)) for t in targets]
         for chunk_index in chunk_indexs:
             if chunk_index != -1:
                 result.append(text[start_index: start_index + chunk_index + 1])
@@ -224,6 +221,8 @@ def load_current_chunks(xml_dir: pathlib.Path, chunk_threshold: int) -> list[dic
 
 
 if __name__ == '__main__':
+    from src.config import XML_DIR, CHUNK_THRESHOLD
+
     chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD)
     print(len(chunks))
     print(len(find_current_version_paths(XML_DIR)))

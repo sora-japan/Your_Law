@@ -10,11 +10,12 @@ REQUIRED_KEYS = (
 # 分割レベルによって存在しないキー。空文字で埋める
 OPTIONAL_KEYS = ('article_num', 'paragraph_num', 'item_num', 'amend_law_num')
 
+
 def create_client():
     return chromadb.Client()
 
 
-def create_collection(client, name: str = 'my_collection', space: str = 'cosine'):
+def create_collection(client, name: str, space: str):
     return client.create_collection(name=name, metadata={'hnsw:space': space})
 
 
@@ -40,23 +41,3 @@ def add_chunks(collection, chunks: list[dict], model, batch_size: int) -> int:
         )
         added += len(batch)
     return added
-
-
-if __name__ == '__main__':
-    from src.ingestion.chunk_splitting import XML_DIR, CHUNK_THRESHOLD, load_current_chunks
-    from src.embedding.embedding import load_model
-
-    BATCH_SIZE = 1000
-
-    chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD)
-    print(f'チャンク数: {len(chunks)}')
-
-    target = chunks[:10000]
-    model = load_model()
-    client = create_client()
-    collection = create_collection(client)
-
-    added = add_chunks(collection, target, model, BATCH_SIZE)
-    print(f'投入: {added} / コレクション件数: {collection.count()}')
-
-    print(build_metadata(target[0]))
