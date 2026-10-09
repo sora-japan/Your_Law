@@ -1,3 +1,5 @@
+import argparse
+
 from src import config
 from src.embedding.embedding import load_model
 from src.ingestion.chunk_splitting import load_current_chunks
@@ -25,4 +27,11 @@ def build_index(limit: int | None) -> None:
 
 
 if __name__ == '__main__':
-    build_index(10000)
+    parser = argparse.ArgumentParser(description='法令チャンクを埋め込んでChromaに投入し、検索インデックスを構築する')
+
+    # 引数なしで実行しても全件投入にならないようにdefault=10000にしています
+    parser.add_argument('--limit', default=10000, type=int, help='投入するチャンク数の上限。全件投入は--limit 0')
+    args = parser.parse_args()
+    # build_indexはNoneを全件の意味で受け取るので、0をNoneに変換する
+    limit = None if args.limit == 0 else args.limit
+    build_index(limit)
