@@ -197,18 +197,24 @@ def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int) -> list[dict]
 
 
 def find_current_version_paths(xml_dir: pathlib.Path) -> list[pathlib.Path]:
-    """法令IDごとに、施行済みのうち最も新しい施行日のファイルを1つ選ぶ"""
+    """法令IDごとに、施行済みのうち最も新しい施行日のファイルを1つ選び、パスのリストで返す。
+    
+    同じ施行日の版が複数ある場合は、改正法令IDが最大のものを選ぶ(ADR-0032)。 """
     today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
     latest = {}
+    latest_path = {}
     for path in xml_dir.rglob('*.xml'):
         parts = path.stem.split('_')
-        law_id = parts[0]
         enforce_date = parts[1]
         if enforce_date > today:
             continue
-        if law_id not in latest or enforce_date > latest[law_id][0]:
-            latest[law_id] = (enforce_date, path)
-    current_version_paths = [path for _, path in latest.values()]
+        law_id = parts[0]
+        amend_law_id = parts[2]
+        version_key = (enforce_date, amend_law_id)
+        if law_id not in latest or version_key > latest[law_id]:
+            latest[law_id] = version_key
+            latest_path[law_id] = path
+    current_version_paths = list(latest_path.values())
     return current_version_paths
 
 
@@ -226,3 +232,34 @@ if __name__ == '__main__':
     chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD)
     print(len(chunks))
     print(len(find_current_version_paths(XML_DIR)))
+
+    paths = find_current_version_paths(XML_DIR)
+    selected = {path.stem.split('_')[0]: path.stem.split('_')[2] for path in paths}
+    print(selected['325AC0000000226'])
+    print(selected['335M50000100012'])
+
+    def find_date_only(xml_dir: pathlib.Path) -> list[pathlib.Path]:
+        today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
+        latest = {}
+        for path in xml_dir.rglob('*.xml'):
+            parts = path.stem.split('_')
+            law_id = parts[0]
+            enforce_date = parts[1]
+            if enforce_date > today:
+                continue
+            if law_id not in latest or enforce_date > latest[law_id][0]:
+                latest[law_id] = (enforce_date, path)
+        current_version_paths = [path for _, path in latest.values()]
+        return current_version_paths
+    
+    
+    date_only_chunks = []
+    for path in find_date_only(XML_DIR):
+        date_only_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+    print(f'日付のみで比較: {len(date_only_chunks)}')
+
+    from collections import Counter
+    stems = Counter(path.stem for path in XML_DIR.rglob('*.xml'))
+    dups = [stem for stem, count in stems.items() if count > 1]
+    print(dups)
+    print(len(dups), dups[:5])
