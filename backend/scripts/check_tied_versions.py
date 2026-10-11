@@ -9,15 +9,21 @@ XML_DIR = BASE_DIR / "data" / "all_xml"
 
 today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
 
-law_id_counter = Counter()
+stems = []
 law_ver = {}
 for path in XML_DIR.rglob('*.xml'):
     parts = path.stem.split('_')
+    stems.append(path.stem)
     law_id = parts[0]
     enforce_date = parts[1]
     amend_law_id = parts[2]
     law_ver.setdefault(law_id, []).append((enforce_date, amend_law_id, path))
 
+print('版に一意性があるか確認')
+print(len(stems))
+print(len(set(stems)))
+
+print('===')
 file_list = [len(v) for v in law_ver.values()]
 print(f'ファイル数: {sum(file_list)}')
 print(f'法令数: {len(law_ver)}')
