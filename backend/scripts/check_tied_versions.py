@@ -3,9 +3,8 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
-BASE_DIR = pathlib.Path(__file__).parent.parent
-XML_DIR = BASE_DIR / "data" / "all_xml"
+from src.config import XML_DIR, CHUNK_THRESHOLD
+from src.ingestion.chunk_splitting import find_current_version_paths, get_chunks_with_meta
 
 today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
 
@@ -85,3 +84,28 @@ if __name__ == '__main__':
             print(law_id, same_day[-1][0], len(candidate), other_amend, len(other_set))
     print(f'計算した回数: {compared}')
     print(f'失った条があった回数: {missing_count}')
+
+    paths = find_current_version_paths(XML_DIR)
+    selected = {path.stem.split('_')[0]: path.stem.split('_')[2] for path in paths}
+    print(selected['325AC0000000226'])
+    print(selected['335M50000100012'])
+
+    def find_date_only(xml_dir: pathlib.Path) -> list[pathlib.Path]:
+        today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
+        latest = {}
+        for path in xml_dir.rglob('*.xml'):
+            parts = path.stem.split('_')
+            law_id = parts[0]
+            enforce_date = parts[1]
+            if enforce_date > today:
+                continue
+            if law_id not in latest or enforce_date > latest[law_id][0]:
+                latest[law_id] = (enforce_date, path)
+        current_version_paths = [path for _, path in latest.values()]
+        return current_version_paths
+    
+    
+    date_only_chunks = []
+    for path in find_date_only(XML_DIR):
+        date_only_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+    print(f'日付のみで比較: {len(date_only_chunks)}')
