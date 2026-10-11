@@ -51,3 +51,31 @@ print(f'影響する法令: {len(tied_laws)}')
 for law_id, date, same_day in tied_laws:
     amend_ids = [amend for amend, _ in same_day]
     print(law_id, date, amend_ids)
+
+
+def main_article_nums(path: pathlib.Path) -> set:
+    root = ET.parse(path).getroot()
+    main = root.find('LawBody').find('MainProvision')
+    num_set = set()
+    for article in main.findall('.//Article'):
+        num_set.add(article.get('Num', ''))
+    return num_set
+
+
+if __name__ == '__main__':
+    print('===')
+    compared = 0
+    missing_count = 0
+    for law_id, enforce_date, same_day in tied_laws:
+        # tied_lawsはsort済みなので、一番最後のものを候補とする
+        candidate = main_article_nums(same_day[-1][1])
+        for other_amend, other_path in same_day[:-1]:
+            other_set = main_article_nums(other_path)
+            ans = other_set - candidate
+            compared += 1
+            if ans:
+                print('他版にあって候補にない条番号: ', ans, law_id, other_amend)
+                missing_count += 1
+            print(law_id, same_day[-1][0], len(candidate), other_amend, len(other_set))
+    print(f'計算した回数: {compared}')
+    print(f'失った条があった回数: {missing_count}')
