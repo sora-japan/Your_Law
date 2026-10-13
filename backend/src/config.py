@@ -15,3 +15,7 @@ BATCH_SIZE = 1000
 # ベクトルDB
 COLLECTION_NAME = 'my_collection'
 DISTANCE_SPACE = 'cosine'
+
+# サブセットの目標チャンク数とシード値
+SUBSET_TARGET_CHUNKS = 10000
+SUBSET_SEED = 42
