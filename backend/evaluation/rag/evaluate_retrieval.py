@@ -19,13 +19,6 @@ def convert_dict(convert_list: list[dict]) -> dict:
     return result
 
 
-def judgement(eval_set: dict, ans: dict) -> bool:
-    for gold in eval_set['gold']:
-        if gold in ans['retrieved_doc_ids']:
-            return True
-    return False
-
-
 if __name__ == '__main__':
     eval_set = convert_dict(convert_jsonl(JSONL_FILE))
     dummy_set = convert_dict(convert_jsonl(PRE_FILE))
