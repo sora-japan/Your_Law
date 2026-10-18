@@ -1,9 +1,6 @@
 import random
 from collections import defaultdict
 
-from src import config
-from src.ingestion.chunk_splitting import load_current_chunks
-
 
 def group_chunks_by_law_id(chunks: list[dict]) -> dict[str, list[dict]]:
     """法令IDごとにチャンクをまとめる"""
