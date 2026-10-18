@@ -3,12 +3,12 @@ import pathlib
 from src import config
 from src.ingestion.chunk_splitting import load_current_chunks
 from src.ingestion.sub_set import create_sub_chunks
-from evaluation.rag.eval_data import convert_jsonl, convert_dict
+from evaluation.rag.eval_data import load_eval_set
 
 
 def collect_must_law_ids(path: pathlib.Path) -> set[str]:
     """評価データのgoldに含まれる法令IDを集める"""
-    eval_set = convert_dict(convert_jsonl(path))
+    eval_set = load_eval_set(path)
     must_law_ids = set()
     for row in eval_set.values():
         for gold in row['gold']:
@@ -17,6 +17,8 @@ def collect_must_law_ids(path: pathlib.Path) -> set[str]:
 
 
 if __name__ == '__main__':
+    from collections import Counter
+
     chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD)
     must_law_ids = collect_must_law_ids(config.EVAL_SET_FILE)
 
@@ -36,6 +38,15 @@ if __name__ == '__main__':
     print(f'サブセットの法令数: {len(subset_law_ids)}')
     print(f'必ず含める法令数: {len(must_law_ids)}')
     print(f'chunk_idの重複: {len(chunk_ids) - len(set(chunk_ids))}')
+
+    must_chunks = [chunk for chunk in subset if chunk['law_id'] in must_law_ids]
+    print(f'必ず含める法令のチャンク数: {len(must_chunks)}')
+    print(f'サブセットに占める割合: {len(must_chunks) / len(subset) * 100:.1f}%')
+
+    must_law_id_list = [chunk['law_id'] for chunk in must_chunks]
+    must_counts = Counter(must_law_id_list)
+    for law_id, n in must_counts.most_common():
+        print(f'{law_id}: {n}件')
 
     for chunk_id in chunk_ids:
         print(chunk_id)
