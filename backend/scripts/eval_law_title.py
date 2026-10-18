@@ -18,7 +18,7 @@ TARGETS = ('介護保険法', '建築基準', '都市計画', '消防法', '食�
 
 if __name__ == '__main__':
     child_title_count = 0
-    current_paths = find_current_version_paths(config.XML_DIR)
+    current_paths = find_current_version_paths(config.XML_DIR, config.REFERENCE_DATE)
     print(f'対象ファイル: {len(current_paths)}')
 
     matches = {target: [] for target in TARGETS}

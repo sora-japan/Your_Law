@@ -196,17 +196,18 @@ def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int) -> list[dict]
     return chunk_result
 
 
-def find_current_version_paths(xml_dir: pathlib.Path) -> list[pathlib.Path]:
+def find_current_version_paths(xml_dir: pathlib.Path, reference_date: str) -> list[pathlib.Path]:
     """法令IDごとに、施行済みのうち最も新しい施行日のファイルを1つ選び、パスのリストで返す。
     
-    同じ施行日の版が複数ある場合は、改正法令IDが最大のものを選ぶ(ADR-0032)。 """
-    today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
+    同じ施行日の版が複数ある場合は、改正法令IDが最大のものを選ぶ(ADR-0032)。
+    基準日(reference_date)を引数で受け取るのは、比較実験間のコーパスを固定するため(ADR-0040)。
+    """
     latest = {}
     latest_path = {}
     for path in xml_dir.rglob('*.xml'):
         parts = path.stem.split('_')
         enforce_date = parts[1]
-        if enforce_date > today:
+        if enforce_date > reference_date:
             continue
         law_id = parts[0]
         amend_law_id = parts[2]
@@ -218,17 +219,17 @@ def find_current_version_paths(xml_dir: pathlib.Path) -> list[pathlib.Path]:
     return current_version_paths
 
 
-def load_current_chunks(xml_dir: pathlib.Path, chunk_threshold: int) -> list[dict]:
+def load_current_chunks(xml_dir: pathlib.Path, chunk_threshold: int, reference_date: str) -> list[dict]:
     """現行版の全法令をチャンクにして返す"""
     chunks = []
-    for path in find_current_version_paths(xml_dir):
+    for path in find_current_version_paths(xml_dir, reference_date):
         chunks.extend(get_chunks_with_meta(path, chunk_threshold))
     return chunks
 
 
 if __name__ == '__main__':
-    from src.config import XML_DIR, CHUNK_THRESHOLD
+    from src.config import XML_DIR, CHUNK_THRESHOLD, REFERENCE_DATE
 
-    chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD)
+    chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD, REFERENCE_DATE)
     print(len(chunks))
-    print(len(find_current_version_paths(XML_DIR)))
+    print(len(find_current_version_paths(XML_DIR, REFERENCE_DATE)))

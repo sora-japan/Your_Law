@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from src.config import XML_DIR, CHUNK_THRESHOLD
+from src.config import XML_DIR, CHUNK_THRESHOLD, REFERENCE_DATE
 from src.ingestion.chunk_splitting import find_current_version_paths, get_chunks_with_meta
 
 today = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     print(f'計算した回数: {compared}')
     print(f'失った条があった回数: {missing_count}')
 
-    paths = find_current_version_paths(XML_DIR)
+    paths = find_current_version_paths(XML_DIR, REFERENCE_DATE)
     selected = {path.stem.split('_')[0]: path.stem.split('_')[2] for path in paths}
     print(selected['325AC0000000226'])
     print(selected['335M50000100012'])

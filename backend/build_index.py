@@ -8,7 +8,7 @@ from src.store import db
 
 def build_index(limit: int | None) -> None:
     """チャンクを読み、埋め込んで、Chroma に投入する。"""
-    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD)
+    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
     print(f'チャンク数: {len(chunks)}')
 
     target = chunks if limit is None else chunks[:limit]

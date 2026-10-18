@@ -19,7 +19,7 @@ def collect_must_law_ids(path: pathlib.Path) -> set[str]:
 if __name__ == '__main__':
     from collections import Counter
 
-    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD)
+    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
     must_law_ids = collect_must_law_ids(config.EVAL_SET_FILE)
 
     subset = create_sub_chunks(

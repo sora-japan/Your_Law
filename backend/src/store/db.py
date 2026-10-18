@@ -71,7 +71,7 @@ if __name__ == '__main__':
     from src.ingestion.chunk_splitting import load_current_chunks
     from src.store import db
 
-    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD)
+    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
     print(f'チャンク数: {len(chunks)}')
 
     limit = 10
