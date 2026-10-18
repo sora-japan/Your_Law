@@ -3,7 +3,7 @@ import pathlib
 from src import config
 from src.ingestion.chunk_splitting import load_current_chunks
 from src.ingestion.sub_set import create_sub_chunks
-from evaluation.rag.evaluate_retrieval import convert_jsonl, convert_dict, JSONL_FILE 
+from evaluation.rag.eval_data import convert_jsonl, convert_dict
 
 
 def collect_must_law_ids(path: pathlib.Path) -> set[str]:
@@ -18,7 +18,7 @@ def collect_must_law_ids(path: pathlib.Path) -> set[str]:
 
 if __name__ == '__main__':
     chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD)
-    must_law_ids = collect_must_law_ids(JSONL_FILE)
+    must_law_ids = collect_must_law_ids(config.EVAL_SET_FILE)
 
     subset = create_sub_chunks(
         chunks, must_law_ids, config.SUBSET_TARGET_CHUNKS, config.SUBSET_SEED

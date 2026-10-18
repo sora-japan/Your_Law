@@ -3,7 +3,6 @@ from collections import defaultdict
 
 from src import config
 from src.ingestion.chunk_splitting import load_current_chunks
-from evaluation.rag.evaluate_retrieval import convert_jsonl, convert_dict, JSONL_FILE 
 
 
 def group_chunks_by_law_id(chunks: list[dict]) -> dict[str, list[dict]]:

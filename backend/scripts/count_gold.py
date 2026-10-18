@@ -1,7 +1,8 @@
-from evaluation.rag.evaluate_retrieval import convert_jsonl, convert_dict, JSONL_FILE 
 from collections import Counter
+from evaluation.rag.eval_data import convert_dict, convert_jsonl
+from src import config
 
-eval_set = convert_dict(convert_jsonl(JSONL_FILE))
+eval_set = convert_dict(convert_jsonl(config.EVAL_SET_FILE))
 gold_value_dict = {}
 gold_value_list_count = []
 gold_counter = Counter()
