@@ -1,9 +1,24 @@
+import json
+
 from evaluation.rag.eval_data import load_eval_set
 from src import config
 from src.embedding.embedding import load_model
 from src.ingestion.chunk_splitting import load_current_chunks
 from src.store import db
 from src.ingestion.sub_set import create_sub_chunks
+from evaluation.rag.metrics import find_rank, calculate_recall_at_k, reciprocal_rank, calculate_mrr
+
+
+def summarize(group: list[dict]) -> dict[str, float | int]:
+    """問題ごとの結果をまとめて、グループ全体の Recall@k の平均と MRR を返す。"""
+    rr_list = [reciprocal_rank(r['rank']) for r in group]
+    result = {'question_num': len(group), 'mrr': calculate_mrr(rr_list)}
+    for k in config.EVAL_K_LIST:
+        recall_list = []
+        for r in group:
+            recall_list.append(r['recall'][str(k)])
+        result[f'recall@{k}'] = sum(recall_list) / len(recall_list)
+    return result
 
 
 if __name__ == '__main__':
@@ -28,14 +43,24 @@ if __name__ == '__main__':
         print(f'警告: 投入{added}件に対しコレクションは{count}件。chunk_idが重複している可能性があります。')
     print(f'投入: {added} / コレクション数: {count}')
 
-    query_text = '訪問販売で契約した場合、クーリング・オフは何日以内にできますか'
-
-    r5 = db.search(collection, model, query_text, 5)
-    r10 = db.search(collection, model, query_text, 10)
-
-    r5_result = [c['chunk_id'] for c in r5]
-    print(r5_result)
-    r10_result = [c['chunk_id'] for c in r10[:5]]
-    print(r10_result)
-    is_result = (r5_result == r10_result)
-    print('一致: ', is_result)
+    records = []
+    for eval_id, row in answerable.items():
+        retrieved = db.search(collection, model, row['question'], max(config.EVAL_K_LIST))
+        recall_result = {}
+        for k in config.EVAL_K_LIST:
+            recall = calculate_recall_at_k(row['gold'], retrieved, k)
+            recall_result[str(k)] = recall
+        records.append({
+            'id': eval_id,
+            'category': row['category'],
+            'gold_num': len(row['gold']),
+            'rank': find_rank(row['gold'], retrieved, max(config.EVAL_K_LIST)),
+            'recall': recall_result,
+        })
+    with open(config.EVAL_RESULT_FILE, 'w', encoding='utf-8') as f:
+        for record in records:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+    article = [r for r in records if r['category'] != 'situation']
+    situation = [r for r in records if r['category'] == 'situation']
+    print('条文型', summarize(article))
+    print('状況型', summarize(situation))
