@@ -107,5 +107,5 @@ if __name__ == '__main__':
     
     date_only_chunks = []
     for path in find_date_only(XML_DIR):
-        date_only_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD))
+        date_only_chunks.extend(get_chunks_with_meta(path, CHUNK_THRESHOLD, REFERENCE_DATE))
     print(f'日付のみで比較: {len(date_only_chunks)}')

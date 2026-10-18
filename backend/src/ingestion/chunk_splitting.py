@@ -1,7 +1,5 @@
 import xml.etree.ElementTree as ET
 import pathlib
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from src.ingestion.text_extraction import extract_text, normalization_text
 from src.config import MIN_RATIO
@@ -123,7 +121,7 @@ def split_by_threshold(chunk_threshold: int, text: str, min_ratio: float = MIN_R
     return result
 
 
-def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int) -> list[dict]:
+def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int, reference_date: str) -> list[dict]:
     """法令XML 1ファイルを読み、メタデータ付きのチャンクのリストを返す。
 
     本則(MainProvision)と附則(SupplProvision)を別々に処理し、provisionで区別する。
@@ -141,8 +139,7 @@ def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int) -> list[dict]
     law_num_text = root.findtext('LawNum') or ''
     file_name = path.stem
     file_name_list = file_name.split('_')
-    today_str = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d')
-    is_current = file_name_list[1] <= today_str
+    is_current = file_name_list[1] <= reference_date
     is_extract = False
     if main is not None:
         is_extract = (main.get('Extract') == 'true')
@@ -223,13 +220,18 @@ def load_current_chunks(xml_dir: pathlib.Path, chunk_threshold: int, reference_d
     """現行版の全法令をチャンクにして返す"""
     chunks = []
     for path in find_current_version_paths(xml_dir, reference_date):
-        chunks.extend(get_chunks_with_meta(path, chunk_threshold))
+        chunks.extend(get_chunks_with_meta(path, chunk_threshold, reference_date))
     return chunks
 
 
 if __name__ == '__main__':
+    from collections import Counter
     from src.config import XML_DIR, CHUNK_THRESHOLD, REFERENCE_DATE
 
     chunks = load_current_chunks(XML_DIR, CHUNK_THRESHOLD, REFERENCE_DATE)
     print(len(chunks))
     print(len(find_current_version_paths(XML_DIR, REFERENCE_DATE)))
+
+    is_current_list = [chunk['is_current'] for chunk in chunks]
+    is_current_counts = Counter(is_current_list)
+    print(f'is_currentの内訳: {is_current_counts}')
