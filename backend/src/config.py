@@ -29,3 +29,6 @@ EVAL_K_LIST = (1, 3, 5, 10)
 # 比較実験の間コーパスを固定するために定数にしています(ADR-0040)。
 # 本番では今日の日付を渡す。
 REFERENCE_DATE = '20261013'
+
+# LLM
+LLM_MODEL = "Qwen/Qwen3-8B"
