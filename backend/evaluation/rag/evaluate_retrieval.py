@@ -1,6 +1,6 @@
 import json
 
-from evaluation.rag.eval_data import load_eval_set
+from evaluation.rag.eval_data import load_eval_set, collect_must_law_ids
 from src import config
 from src.embedding.embedding import load_model
 from src.ingestion.chunk_splitting import load_current_chunks
@@ -27,10 +27,7 @@ if __name__ == '__main__':
     print(f'評価した問題数 :{len(answerable)} / {len(eval_set)}')
 
     chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
-    must_law_ids = set()
-    for row in eval_set.values():
-        for gold in row['gold']:
-            must_law_ids.add(gold['law_id'])
+    must_law_ids = collect_must_law_ids(eval_set)
     subset = create_sub_chunks(chunks, must_law_ids, config.SUBSET_TARGET_CHUNKS, config.SUBSET_SEED)
     model = load_model(config.EMBEDDING_MODEL)
     client = db.create_client()

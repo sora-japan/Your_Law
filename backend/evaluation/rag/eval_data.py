@@ -46,6 +46,15 @@ def load_eval_set(path: pathlib.Path) -> dict:
     return rows
 
 
+def collect_must_law_ids(eval_set: dict) -> set[str]:
+    """評価データのgoldに含まれる法令IDを集める"""
+    must_law_ids = set()
+    for row in eval_set.values():
+        for gold in row['gold']:
+            must_law_ids.add(gold['law_id'])
+    return must_law_ids
+
+
 if __name__ == '__main__':
     from src import config
 
