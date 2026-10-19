@@ -4,6 +4,8 @@ from src import config
 from src.ingestion.chunk_splitting import load_current_chunks
 from src.ingestion.sub_set import create_sub_chunks
 from evaluation.rag.eval_data import load_eval_set
+from collections import Counter
+from evaluation.rag.metrics import is_match
 
 
 def collect_must_law_ids(path: pathlib.Path) -> set[str]:
@@ -17,8 +19,6 @@ def collect_must_law_ids(path: pathlib.Path) -> set[str]:
 
 
 if __name__ == '__main__':
-    from collections import Counter
-
     chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
     must_law_ids = collect_must_law_ids(config.EVAL_SET_FILE)
 
@@ -48,8 +48,18 @@ if __name__ == '__main__':
     for law_id, n in must_counts.most_common():
         print(f'{law_id}: {n}件')
 
-    for chunk_id in chunk_ids:
-        print(chunk_id)
+    eval_set = load_eval_set(config.EVAL_SET_FILE)
+    for eval_id, row in eval_set.items():
+        for gold in row['gold']:
+            hit_chunk_num = 0
+            for chunk in subset:
+                if is_match(gold, chunk):
+                    hit_chunk_num += 1
+            article = gold.get('article_num', '法令全体')
+            print(f'{eval_id} {row['category']} 第{article}条 的{hit_chunk_num}個')
+
+    # for chunk_id in chunk_ids:
+    #     print(chunk_id)
     # 以下をターミナルで打ち、差分が出るかを確認。
     # python3 -m scripts.verify_sub_chunks > run1.txt 
     # python3 -m scripts.verify_sub_chunks > run2.txt 
