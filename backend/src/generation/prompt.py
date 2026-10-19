@@ -1,3 +1,13 @@
+SYSTEM_PROMPT_NO_RAG = """あなたは優秀な法令アシスタントです。
+回答には根拠となる法令名と条番号を示してください。
+確実でない場合は、わからないと答えてください。"""
+
+SYSTEM_PROMPT_RAG = """あなたは優秀な法令アシスタントです。
+与えられた条文のみに基づいて答えてください。
+回答には根拠となる法令名と条番号を示してください。
+確実でない場合は、わからないと答えてください。"""
+
+
 def build_context(search_results: list[dict]) -> str:
     """検索結果を、プロンプトに入れる文脈の文字列にする。
 
@@ -15,6 +25,18 @@ def build_context(search_results: list[dict]) -> str:
         prompt += f"""
 【{i}】{law_title} {article_str} ({provision})
 {text}
+"""
+    return prompt
+
+
+def build_user_prompt(question: str, context: str | None) -> str:
+    """質問と文脈を1つのユーザープロンプトにする。contextがNoneならRAGがない。
+
+    contextにデフォルト値をつけないのは、通し忘れが静かにRAGなしとして通る経路を作らないため。"""
+    if context is None:
+        return question
+    prompt = f"""{context}
+ユーザーの質問: {question}
 """
     return prompt
 
@@ -46,5 +68,6 @@ if __name__ == '__main__':
     query_text = '訪問販売で契約した場合、クーリング・オフは何日以内にできますか'
 
     search_results = db.search(collection, model, query_text, 3)
-    prompt = build_context(search_results)
+    search_context = build_context(search_results)
+    prompt = build_user_prompt(query_text, search_context)
     print(prompt)
