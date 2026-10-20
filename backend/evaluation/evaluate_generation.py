@@ -1,7 +1,9 @@
 import json
+from transformers import set_seed
 
 from src import config
 from evaluation.rag.eval_data import load_eval_set, collect_must_law_ids
+from evaluation.rag.metrics import reciprocal_rank, calculate_recall_at_k, find_rank, calculate_mrr 
 from src.ingestion.sub_set import create_sub_chunks
 from src.ingestion.chunk_splitting import load_current_chunks
 from src.generation import llm
@@ -30,25 +32,54 @@ if __name__ == '__main__':
 
     tokenizer = llm.load_tokenizer(config.LLM_MODEL)
     llm_model = llm.load_model(config.LLM_MODEL)
-    # gen_paramsは一旦仮置き(Qwen3-8Bの思考なしの推奨値
+    # Qwen3-8Bの思考なしの推奨値、set_seedで再現性を確保
     gen_params = {
-        'max_new_tokens': 512,
+        'max_new_tokens': 2048,
         'do_sample': True,
         'temperature': 0.7,
         'top_p': 0.8,
         'top_k': 20,
     }
-    result = []
-    with open(config.RESULTS_DIR / 'generation_rag_20261020.jsonl', 'w', encoding='utf-8') as f:
+    records = []
+    result_path = config.RESULTS_DIR / 'generation_rag_20261020.jsonl'
+    with open(result_path, 'w', encoding='utf-8') as f:
         for eval_id, row in eval_set.items():
             query_text = row['question']
-            search_results = db.search(collection, embed_model, query_text, 3)
-            search_context = build_context(search_results)
-            prompt = build_user_prompt(query_text, search_context)
-            llm_generate = llm.generate(llm_model, tokenizer, SYSTEM_PROMPT_RAG, prompt, gen_params, False)
-            result.append(llm_generate)
-            # EVAL_RESULT_FILEは、RAGの保管場所になっている。これを、resultsの中にしたほうがいい気がする。
-            # そもそもconfigの中身を変えるのはあり
-            f.write(json.dumps(llm_generate, ensure_ascii=False) + '\n')
-            break
-    print(result)
+            search_results = db.search(collection, embed_model, query_text, config.GENERATION_K)
+            context = build_context(search_results)
+            prompt = build_user_prompt(query_text, context)
+            set_seed(42)
+            generated = llm.generate(llm_model, tokenizer, SYSTEM_PROMPT_RAG, prompt, gen_params, False)
+            if row['gold']:
+                rank = find_rank(row['gold'], search_results, config.GENERATION_K)
+                recall = calculate_recall_at_k(row['gold'], search_results, config.GENERATION_K)
+                gold_law_ids = sorted({gold['law_id'] for gold in row['gold']})
+            else:
+                rank = None
+                recall = None
+                gold_law_ids = []
+            retrieved_chunk_ids = [c['chunk_id'] for c in search_results]
+            record = {
+                'id': eval_id,
+                'category': row['category'],
+                'gold_law_ids': gold_law_ids,
+                'rank': rank,
+                'recall': recall,
+                'retrieved_chunk_ids': retrieved_chunk_ids,
+                **generated,
+            }
+            records.append(record)
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+            print(f'{eval_id}完了 ({len(records)} / {len(eval_set)})')
+    answerable = [r for r in records if r['gold_law_ids']]
+    rr_list = [reciprocal_rank(r['rank']) for r in answerable]
+    recalls = [r['recall'] for r in answerable]
+    hit_limit = [r for r in records if r['token_limit']]
+    total_time = sum(r['generation_time'] for r in records)
+
+    print('===')
+    print(f'問題数: {len(records)} 可答問題数: {len(answerable)}')
+    print(f'検索MRR@{config.GENERATION_K}: {calculate_mrr(rr_list):.3f}')
+    print(f'検索 Recall@{config.GENERATION_K}: {sum(recalls) / len(recalls):.3f}')
+    print(f'打ち切り: {len(hit_limit)} / {len(records)}')
+    print(f'生成時間の合計: {total_time:.1f}秒')
