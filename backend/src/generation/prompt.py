@@ -55,35 +55,3 @@ def build_user_prompt(question: str, context: str | None) -> str:
 ユーザーの質問: {question}
 """
     return prompt
-
-
-if __name__ == '__main__':
-    from src import config
-    from src.embedding.embedding import load_model
-    from src.ingestion.chunk_splitting import load_current_chunks
-    from src.store import db
-
-    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
-    print(f'チャンク数: {len(chunks)}')
-
-    limit = 10
-    target = chunks if limit is None else chunks[:limit]
-    print(f'投入対象: {len(target)}')
-
-    model = load_model(config.EMBEDDING_MODEL)
-    client = db.create_client()
-    collection = db.create_collection(
-        client, config.COLLECTION_NAME, config.DISTANCE_SPACE
-    )
-    added = db.add_chunks(collection, target, model, config.BATCH_SIZE)
-    count = collection.count()
-    if count != added:
-        print(f'警告: 投入{added}件に対しコレクションは{count}件。chunk_idが重複している可能性があります。')
-    print(f'投入: {added} / コレクション数: {count}')
-
-    query_text = '訪問販売で契約した場合、クーリング・オフは何日以内にできますか'
-
-    search_results = db.search(collection, model, query_text, 3)
-    search_context = build_context(search_results)
-    prompt = build_user_prompt(query_text, search_context)
-    print(prompt)
