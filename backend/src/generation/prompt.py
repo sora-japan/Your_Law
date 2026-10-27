@@ -11,8 +11,12 @@ SYSTEM_PROMPT_RAG = """あなたは優秀な法令アシスタントです。
 def build_context(search_results: list[dict]) -> str:
     """検索結果を、プロンプトに入れる文脈の文字列にする。
 
-    1件ごとに通し番号と見出し(法令名・条番号・本則/附則)をつけて並べています。
-    条番号を持たないチャンク(article_numが空文字)の時は、条番号を省いています。
+    1件ごとに通し番号と見出し(法令名・条項号・本則/附則)をつけて並べています。
+    条項号は空でない階層だけを繋ぐ。チャンクは条・項・号・機械分割の
+    4レベルに分かれており、条全体が1チャンクなら項番号が空になるため。
+
+    項番号まで渡すのは、渡さないとモデルが本文中の「第一項」等の参照を
+    そのチャンク自身の項番号と誤読するため。
     """
     prompt = ''
     prompt += '以下は検索された法令の条文です。\n'
@@ -20,19 +24,31 @@ def build_context(search_results: list[dict]) -> str:
         law_title = search_result['law_title']
         provision = search_result['provision']
         text = search_result['text']
+        parts = []
         article_num = search_result.get('article_num')
-        article_str = f'第{article_num}条' if article_num != '' else ''
+        paragraph_num = search_result.get('paragraph_num')
+        item_num = search_result.get('item_num')
+        if article_num != '':
+            article_str = f'第{article_num}条'
+            parts.append(article_str)
+        if paragraph_num != '':
+            paragraph_str = f'第{paragraph_num}項'
+            parts.append(paragraph_str)
+        if item_num != '':
+            item_str = f'第{item_num}号'
+            parts.append(item_str)
+        number_str = ''.join(parts)
         prompt += f"""
-【{i}】{law_title} {article_str} ({provision})
+【{i}】{law_title} {number_str} ({provision})
 {text}
 """
     return prompt
 
 
 def build_user_prompt(question: str, context: str | None) -> str:
-    """質問と文脈を1つのユーザープロンプトにする。contextがNoneならRAGがない。
+    """質問と文脈を1つのユーザープロンプトにする。contextがNoneならRAGはなし。
 
-    contextにデフォルト値をつけないのは、通し忘れが静かにRAGなしとして通る経路を作らないため。"""
+    contextにデフォルト値をつけないのは、渡し忘れが静かにRAGなしとして通る経路を作らないため。"""
     if context is None:
         return question
     prompt = f"""{context}
