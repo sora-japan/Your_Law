@@ -59,6 +59,7 @@ def generate(model, tokenizer, system_prompt: str, prompt: str, gen_params: dict
 if __name__ == '__main__':
     tokenizer = load_tokenizer(config.LLM_MODEL)
     model = load_model(config.LLM_MODEL)
+    print(model.dtype)
     prompt = '日本の民法における「契約」の成立要件について、簡潔に説明してください。'
     system_prompt = 'あなたは優秀な法的アシスタントです。ユーザーからの質問に対して、関連する法令や制度を踏まえ、正確かつ分かりやすい日本語で回答してください。'
     enable_thinking = False
