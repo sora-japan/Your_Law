@@ -8,6 +8,20 @@ SYSTEM_PROMPT_RAG = """あなたは優秀な法令アシスタントです。
 確実でない場合は、わからないと答えてください。"""
 
 
+def format_number(num: str, unit: str) -> str:
+    """法令番号の枝番表記を、読める形にする。
+
+    e-Gov のXMLは枝番が58_11_2の形になっている。
+    そのまま出すと「第58_11_2条」になり、法令の引用として成立しない。
+    unitは条、項、号のいずれかで、先頭の直後に挟む。
+    """
+    num_parts = num.split('_')
+    num_str = '第' + num_parts[0] + unit
+    for num_part in num_parts[1:]:
+        num_str += 'の' + num_part
+    return num_str
+
+
 def build_context(search_results: list[dict]) -> str:
     """検索結果を、プロンプトに入れる文脈の文字列にする。
 
@@ -29,13 +43,13 @@ def build_context(search_results: list[dict]) -> str:
         paragraph_num = search_result.get('paragraph_num')
         item_num = search_result.get('item_num')
         if article_num != '':
-            article_str = f'第{article_num}条'
+            article_str = format_number(article_num, '条')
             parts.append(article_str)
         if paragraph_num != '':
-            paragraph_str = f'第{paragraph_num}項'
+            paragraph_str = format_number(paragraph_num, '項')
             parts.append(paragraph_str)
         if item_num != '':
-            item_str = f'第{item_num}号'
+            item_str = format_number(item_num, '号')
             parts.append(item_str)
         number_str = ''.join(parts)
         prompt += f"""
