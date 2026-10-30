@@ -12,14 +12,50 @@ OPTIONAL_KEYS = ('article_num', 'paragraph_num', 'item_num', 'amend_law_num')
 
 
 def create_client():
+    """インメモリのクライアントを返す。プロセスが終われば中身は消える。"""
     return chromadb.Client()
 
 
-def create_collection(client, name: str, space: str):
-    return client.create_collection(name=name, metadata={'hnsw:space': space})
+def create_persistent_client(path):
+    """ChromaDBのデータをローカルのディスク上に保存・読み込みする"""
+    return chromadb.PersistentClient(path=path)
 
 
-def build_metadata(chunk: dict) -> dict:
+def collection_metadata(model_name: str, chunk_threshold: int, reference_date: str, chunk_count: int) -> dict:
+    """コレクションの中身を決める値。名前の組み立てにも使用する。
+
+    build_chunk_metadata はチャンク1件ごとのメタデータだが、これはコレクション全体に1つ。
+    chunk_countは実際に投入した件数。名前の末尾の数字がそのまま中身の件数になる。
+    """
+    metadata = {
+        'model_name': model_name,
+        'chunk_threshold': chunk_threshold,
+        'reference_date': reference_date,
+        'chunk_count': chunk_count,
+    }
+    return metadata
+
+
+def collection_name(metadata: dict) -> str:
+    """コレクションの名前をコレクションのメタデータから作成"""
+    model = metadata['model_name'].split('/')[-1]
+    chunk_threshold = metadata['chunk_threshold']
+    reference_date = metadata['reference_date']
+    chunk_count = metadata['chunk_count']
+    name = f'{model}_{chunk_threshold}_{reference_date}_{chunk_count}'
+    return name
+
+
+def create_collection(client, name: str, space: str, metadata: dict):
+    """コレクションを新しく作る"""
+    return client.create_collection(
+        name=name,
+        configuration={'hnsw': {'space': space}},
+        metadata=metadata,
+    )
+
+
+def build_chunk_metadata(chunk: dict) -> dict:
     """チャンクからChromaに渡すメタデータを作る"""
     metadata = {key: chunk[key] for key in REQUIRED_KEYS}
     for key in OPTIONAL_KEYS:
@@ -37,10 +73,15 @@ def add_chunks(collection, chunks: list[dict], model, batch_size: int) -> int:
             ids=[chunk['chunk_id'] for chunk in batch],
             embeddings=embed_documents(model, documents),
             documents=documents,
-            metadatas=[build_metadata(chunk) for chunk in batch],
+            metadatas=[build_chunk_metadata(chunk) for chunk in batch],
         )
         added += len(batch)
     return added
+
+
+def get_collection(client, name: str):
+    """保存済みのコレクションを開く"""
+    return client.get_collection(name=name)
 
 
 def search(collection, model, query_text: str, k: int) -> list[dict]:
@@ -69,7 +110,6 @@ if __name__ == '__main__':
     from src import config
     from src.embedding.embedding import load_model
     from src.ingestion.chunk_splitting import load_current_chunks
-    from src.store import db
 
     chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
     print(f'チャンク数: {len(chunks)}')
@@ -78,12 +118,17 @@ if __name__ == '__main__':
     target = chunks if limit is None else chunks[:limit]
     print(f'投入対象: {len(target)}')
 
+    meta = collection_metadata(config.EMBEDDING_MODEL, config.CHUNK_THRESHOLD, config.REFERENCE_DATE, len(target))
+    name = collection_name(meta)
+
     model = load_model(config.EMBEDDING_MODEL)
-    client = db.create_client()
-    collection = db.create_collection(
-        client, config.COLLECTION_NAME, config.DISTANCE_SPACE
+    client = create_client()
+    collection = create_collection(
+        client, name, config.DISTANCE_SPACE, meta
     )
-    added = db.add_chunks(collection, target, model, config.BATCH_SIZE)
+    print(collection.metadata)
+    print(collection.configuration)
+    added = add_chunks(collection, target, model, config.BATCH_SIZE)
     count = collection.count()
     if count != added:
         print(f'警告: 投入{added}件に対しコレクションは{count}件。chunk_idが重複している可能性があります。')

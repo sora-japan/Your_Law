@@ -13,8 +13,9 @@ EMBEDDING_MODEL = 'cl-nagoya/ruri-v3-310m'
 BATCH_SIZE = 1000
 
 # ベクトルDB
-COLLECTION_NAME = 'my_collection'
 DISTANCE_SPACE = 'cosine'
+# クロマDBの保存先パス
+CHROMA_DIR = BACKEND_DIR / 'chroma'
 
 # サブセットの目標チャンク数とシード値
 SUBSET_TARGET_CHUNKS = 50000
