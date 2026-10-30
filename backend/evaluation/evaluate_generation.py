@@ -11,7 +11,7 @@ from src.generation.prompt import build_user_prompt, build_context, SYSTEM_PROMP
 from src.embedding import embedding
 from src.store import db
 
-USE_RAG = False
+USE_RAG = True
 
 if __name__ == '__main__':
     eval_set = load_eval_set(config.EVAL_SET_FILE)
@@ -44,9 +44,9 @@ if __name__ == '__main__':
     }
     records = []
     if USE_RAG:
-        result_path = config.RESULTS_DIR / 'generation_rag_20261020.jsonl'
+        result_path = config.RESULTS_DIR / 'generation_rag_20261029b.jsonl'
     else:
-        result_path = config.RESULTS_DIR / 'generation_norag_20261020.jsonl'
+        result_path = config.RESULTS_DIR / 'generation_norag_20261029b.jsonl'
     with open(result_path, 'w', encoding='utf-8') as f:
         for eval_id, row in eval_set.items():
             query_text = row['question']
