@@ -1,11 +1,12 @@
 import json
+import argparse
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from evaluation.rag.eval_data import load_eval_set, collect_must_law_ids
+from evaluation.rag.eval_data import load_eval_set
 from src import config
 from src.embedding.embedding import load_model
-from src.ingestion.chunk_splitting import load_current_chunks
 from src.store import db
-from src.ingestion.sub_set import create_sub_chunks
 from evaluation.rag.metrics import find_rank, calculate_recall_at_k, reciprocal_rank, calculate_mrr
 
 
@@ -22,24 +23,21 @@ def summarize(group: list[dict]) -> dict[str, float | int]:
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='保存済みコレクションから、検索の性能評価をする')
+    parser.add_argument('name', help='評価するコレクションの名前')
+    args = parser.parse_args()
+
     eval_set = load_eval_set(config.EVAL_SET_FILE)
     answerable = {k: v for k, v in eval_set.items() if v['gold']}
     print(f'評価した問題数 :{len(answerable)} / {len(eval_set)}')
 
-    chunks = load_current_chunks(config.XML_DIR, config.CHUNK_THRESHOLD, config.REFERENCE_DATE)
-    must_law_ids = collect_must_law_ids(eval_set)
-    subset = create_sub_chunks(chunks, must_law_ids, config.SUBSET_TARGET_CHUNKS, config.SUBSET_SEED)
     model = load_model(config.EMBEDDING_MODEL)
-    client = db.create_client()
-    collection = db.create_collection(
-        client, config.COLLECTION_NAME, config.DISTANCE_SPACE
-    )
-    added = db.add_chunks(collection, subset, model, config.BATCH_SIZE)
-    count = collection.count()
-    if count != added:
-        print(f'警告: 投入{added}件に対しコレクションは{count}件。chunk_idが重複している可能性があります。')
-    print(f'投入: {added} / コレクション数: {count}')
+    client = db.create_persistent_client(config.CHROMA_DIR)
+    collection = db.get_collection(client, args.name)
 
+    method = 'vector'
+    timestamp = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d-%H%M')
+    file_name = f'retrieval_{args.name}_{method}_{timestamp}.jsonl'
     records = []
     for eval_id, row in answerable.items():
         retrieved = db.search(collection, model, row['question'], max(config.EVAL_K_LIST))
@@ -54,7 +52,7 @@ if __name__ == '__main__':
             'rank': find_rank(row['gold'], retrieved, max(config.EVAL_K_LIST)),
             'recall': recall_result,
         })
-    with open(config.EVAL_RESULT_FILE, 'w', encoding='utf-8') as f:
+    with open(config.RESULTS_DIR / file_name, 'w', encoding='utf-8') as f:
         for record in records:
             f.write(json.dumps(record, ensure_ascii=False) + '\n')
     article = [r for r in records if r['category'] != 'situation']

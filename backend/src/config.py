@@ -24,7 +24,6 @@ SUBSET_SEED = 42
 # 評価用
 RESULTS_DIR = BACKEND_DIR / 'evaluation' / 'results'
 EVAL_SET_FILE = BACKEND_DIR / 'evaluation' / 'rag' / 'eval_set.jsonl'
-EVAL_RESULT_FILE = RESULTS_DIR / 'eval_result.jsonl'
 EVAL_K_LIST = (1, 3, 5, 10)
 
 
