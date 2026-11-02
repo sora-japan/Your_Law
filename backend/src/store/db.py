@@ -1,4 +1,6 @@
 import chromadb
+from pathlib import Path
+
 from src.embedding.embedding import embed_documents, embed_query
 
 # チャンクに必ず存在するキー、かけていたら前処理のバグなので、KeyErrorで落とす
@@ -16,7 +18,7 @@ def create_client():
     return chromadb.Client()
 
 
-def create_persistent_client(path):
+def create_persistent_client(path: Path):
     """ChromaDBのデータをローカルのディスク上に保存・読み込みする"""
     return chromadb.PersistentClient(path=path)
 
@@ -84,6 +86,24 @@ def get_collection(client, name: str):
     return client.get_collection(name=name)
 
 
+def get_all_documents(collection, batch_size: int) -> tuple[list[str], list[str]]:
+    """ChromaのローカルDB(SQLite)の変数上限に当たらないよう、分けて取る。
+
+    ids と documents は、同じ位置が同じチャンクに対応する。
+    """
+    offset = 0
+    ids = []
+    documents = []
+    while True:
+        got = collection.get(limit=batch_size, offset=offset, include=['documents'])
+        if not got['ids']:
+            break
+        ids.extend(got['ids'])
+        documents.extend(got['documents'])
+        offset += batch_size
+    return (ids, documents)
+
+
 def search(collection, model, query_text: str, k: int) -> list[dict]:
     """クエリに近いチャンクをk件返す。距離の小さい順。
 
@@ -115,7 +135,7 @@ if __name__ == '__main__':
     print(f'チャンク数: {len(chunks)}')
 
     limit = 10
-    target = chunks if limit is None else chunks[:limit]
+    target = chunks[:limit]
     print(f'投入対象: {len(target)}')
 
     meta = collection_metadata(config.EMBEDDING_MODEL, config.CHUNK_THRESHOLD, config.REFERENCE_DATE, len(target))
@@ -138,3 +158,7 @@ if __name__ == '__main__':
 
     search_result = search(collection, model, query_text, 3)
     print(search_result)
+
+    ids, documents = get_all_documents(collection, config.BATCH_SIZE)
+    print(f'抜けなし: {len(ids) == collection.count()}')
+    print(f'重複なし: {len(ids) == len(set(ids))}')
