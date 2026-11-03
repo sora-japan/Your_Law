@@ -1,3 +1,16 @@
+"""保存済みのコレクションに対して、検索だけの性能を測る。
+
+--method vector ベクトル検索のみ
+--method bm25 BM25(文字2-gram)のみ
+--method hybrid 両方を検索してRRFで統合
+
+不可答5問は検索で測るものがないので、goldのある45問だけを対象にしている。
+条文型と状況型を分けて集計する。
+状況型のgoldはlaw_idのみで、「正しい法令を引けたか」を測っており、条単位の条文型とは別の指標になる。
+
+固定名で上書きすると、構成を変えた測定のファイルが消えてしまうため、
+出力は結果ごとに1ファイル。コレクション名・検索方式・実行時刻を名前に入れる。
+"""
 import json
 import argparse
 from datetime import datetime
@@ -10,6 +23,7 @@ from src.embedding.embedding import load_model
 from src.store import db
 from evaluation.rag.metrics import find_rank, calculate_recall_at_k, reciprocal_rank, calculate_mrr
 from src.retrieval import bm25
+from src.retrieval.rrf import rrf
 
 
 def summarize(group: list[dict]) -> dict[str, float | int]:
@@ -27,7 +41,7 @@ def summarize(group: list[dict]) -> dict[str, float | int]:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='保存済みコレクションから、検索の性能評価をする')
     parser.add_argument('name', help='評価するコレクションの名前')
-    parser.add_argument('--method', default='vector', choices=['vector', 'bm25'], help='検索の仕方')
+    parser.add_argument('--method', default='vector', choices=['vector', 'bm25', 'hybrid'], help='検索の仕方')
     args = parser.parse_args()
 
     eval_set = load_eval_set(config.EVAL_SET_FILE)
@@ -40,21 +54,27 @@ if __name__ == '__main__':
     timestamp = datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d-%H%M')
     file_name = f'retrieval_{args.name}_{args.method}_{timestamp}.jsonl'
 
-    if args.method == 'vector':
+    if args.method in ('vector', 'hybrid'):
         model = load_model(config.EMBEDDING_MODEL)
-    elif args.method == 'bm25':
+
+    if args.method in ('bm25', 'hybrid'):
         start = time.perf_counter()
         chunk_ids, documents, metadatas = db.get_all_chunks(collection, config.BATCH_SIZE)
         bm25_index = bm25.create_index(chunk_ids, documents, metadatas)
-        end = time.perf_counter()
-        print(f'チャンクの取得と索引の構築: {end - start:.1f}秒')
+        print(f'チャンクの取得と索引の構築: {time.perf_counter() - start:.1f}秒')
 
     records = []
     for eval_id, row in answerable.items():
+        search_start = time.perf_counter()
         if args.method == 'vector':
             retrieved = db.search(collection, model, row['question'], max(config.EVAL_K_LIST))
         elif args.method == 'bm25':
             retrieved = bm25.search(bm25_index, row['question'], max(config.EVAL_K_LIST))
+        elif args.method == 'hybrid':
+            vector_result = db.search(collection, model, row['question'], max(config.EVAL_K_LIST))
+            bm25_result = bm25.search(bm25_index, row['question'], max(config.EVAL_K_LIST))
+            retrieved = rrf(vector_result, bm25_result)
+        search_time = time.perf_counter() - search_start
         recall_result = {}
         for k in config.EVAL_K_LIST:
             recall = calculate_recall_at_k(row['gold'], retrieved, k)
@@ -65,6 +85,7 @@ if __name__ == '__main__':
             'gold_num': len(row['gold']),
             'rank': find_rank(row['gold'], retrieved, max(config.EVAL_K_LIST)),
             'recall': recall_result,
+            'search_time': search_time,
         })
     with open(config.RESULTS_DIR / file_name, 'w', encoding='utf-8') as f:
         for record in records:
