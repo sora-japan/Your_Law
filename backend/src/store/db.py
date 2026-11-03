@@ -86,22 +86,25 @@ def get_collection(client, name: str):
     return client.get_collection(name=name)
 
 
-def get_all_documents(collection, batch_size: int) -> tuple[list[str], list[str]]:
-    """ChromaのローカルDB(SQLite)の変数上限に当たらないよう、分けて取る。
+def get_all_chunks(collection, batch_size: int) -> tuple[list[str], list[str], list[dict]]:
+    """コレクションの全チャンクを、id・本文・メタデータの3本のリストで返す。
 
-    ids と documents は、同じ位置が同じチャンクに対応する。
+    ChromaのローカルDB(SQLite)の変数上限に当たらないよう、limitとoffsetで分けて取る。
+    ids / documents / metadatas は、同じ位置が同じチャンクに対応する。
     """
     offset = 0
     ids = []
     documents = []
+    metadatas = []
     while True:
-        got = collection.get(limit=batch_size, offset=offset, include=['documents'])
+        got = collection.get(limit=batch_size, offset=offset, include=['documents', 'metadatas'])
         if not got['ids']:
             break
         ids.extend(got['ids'])
         documents.extend(got['documents'])
+        metadatas.extend(got['metadatas'])
         offset += batch_size
-    return (ids, documents)
+    return (ids, documents, metadatas)
 
 
 def search(collection, model, query_text: str, k: int) -> list[dict]:
@@ -159,6 +162,7 @@ if __name__ == '__main__':
     search_result = search(collection, model, query_text, 3)
     print(search_result)
 
-    ids, documents = get_all_documents(collection, config.BATCH_SIZE)
+    ids, documents, metadatas = get_all_chunks(collection, config.BATCH_SIZE)
     print(f'抜けなし: {len(ids) == collection.count()}')
     print(f'重複なし: {len(ids) == len(set(ids))}')
+    print(metadatas[0])

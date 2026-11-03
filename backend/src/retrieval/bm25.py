@@ -10,6 +10,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 @dataclass
 class Bm25Index:
     chunk_ids: list[str]
+    metadatas: list[dict]
     matrix: csr_matrix
     vocabulary: dict[str, int]
     idf: np.ndarray
@@ -70,20 +71,21 @@ def compute_doc_lengths(matrix: csr_matrix) -> tuple[np.ndarray, float]:
     return documents_len, avgdl
 
 
-def create_index(chunk_ids: list[str], documents: list[str], k1: float = 1.2, b: float = 0.75) -> Bm25Index:
+def create_index(chunk_ids: list[str], documents: list[str], metadatas: list[dict], k1: float = 1.2, b: float = 0.75) -> Bm25Index:
     """文書からBM25の索引を作る。
 
-    chunk_ids と documentsは、同じ位置が同じチャンクに対応している必要がある。
+    chunk_ids と documents と metadatas は、同じ位置が同じチャンクに対応している必要がある。
     ズレると検索結果が全く別のチャンクを指すため、構築時に止める。
     """
-    if len(chunk_ids) != len(documents):
-        raise ValueError('chunk_idsの数とドキュメントの数が合いません')
+    if not (len(chunk_ids) == len(documents) == len(metadatas)):
+        raise ValueError('chunk_idsの数とドキュメントとメタデータの数が合いません')
     vectorizer, matrix = build_count_matrix(documents)
     vocabulary = vectorizer.vocabulary_
     idf = compute_idf(matrix)
     documents_len, avgdl = compute_doc_lengths(matrix)
     return Bm25Index(
         chunk_ids=chunk_ids,
+        metadatas=metadatas,
         matrix=matrix,
         vocabulary=vocabulary,
         idf=idf,
@@ -97,7 +99,7 @@ def create_index(chunk_ids: list[str], documents: list[str], k1: float = 1.2, b:
 def search(index: Bm25Index, query: str, k: int) -> list[dict]:
     """質問に近い文書を、スコアの大きい順にk件返す。
 
-    1件はchunk_idとscoreを持つ辞書。db.searchと形を揃えてあり、RRFで統合できる。
+    1件はchunk_idとscoreとmetadataを持つ辞書。db.searchと形を揃えてあり、RRFで統合できる。
 
     質問を2-gramにし、語彙にある語の列だけを抜き出してから疎行列を密行列にする。
 
@@ -125,12 +127,13 @@ def search(index: Bm25Index, query: str, k: int) -> list[dict]:
         score = scores[i]
         if score == 0.0:
             break
-        query_ans.append({'chunk_id': chunk_id, 'score': float(score)})
+        query_ans.append({'chunk_id': chunk_id, 'score': float(score), **index.metadatas[i]})
     return query_ans
 
 
 if __name__ == '__main__':
     text = ['販売販売販売', '通信販売', '消防設備']
+    metadatas = [{'law_id': 'A'}, {'law_id': 'B'}, {'law_id': 'C'}]
     vectorizer, matrix = build_count_matrix(text)
     print(type(vectorizer))
     print(vectorizer.get_feature_names_out())
@@ -145,7 +148,7 @@ if __name__ == '__main__':
     documents_len, avgdl = compute_doc_lengths(matrix)
     print(documents_len)
     print(avgdl)
-    index = create_index(['a', 'b', 'c'], text)
+    index = create_index(['a', 'b', 'c'], text, metadatas)
     print(index)
     query_ans = search(index, '販売について', k=10)
     print(query_ans)
