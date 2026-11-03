@@ -10,6 +10,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 @dataclass
 class Bm25Index:
     chunk_ids: list[str]
+    documents: list[str]
     metadatas: list[dict]
     matrix: csr_matrix
     vocabulary: dict[str, int]
@@ -85,6 +86,7 @@ def create_index(chunk_ids: list[str], documents: list[str], metadatas: list[dic
     documents_len, avgdl = compute_doc_lengths(matrix)
     return Bm25Index(
         chunk_ids=chunk_ids,
+        documents=documents,
         metadatas=metadatas,
         matrix=matrix,
         vocabulary=vocabulary,
@@ -99,7 +101,7 @@ def create_index(chunk_ids: list[str], documents: list[str], metadatas: list[dic
 def search(index: Bm25Index, query: str, k: int) -> list[dict]:
     """質問に近い文書を、スコアの大きい順にk件返す。
 
-    1件はchunk_idとscoreとmetadataを持つ辞書。db.searchと形を揃えてあり、RRFで統合できる。
+    1件はchunk_idとtextとscoreとmetadataを持つ辞書。db.searchと形を揃えてあり、RRFで統合できる。
 
     質問を2-gramにし、語彙にある語の列だけを抜き出してから疎行列を密行列にする。
 
@@ -127,7 +129,12 @@ def search(index: Bm25Index, query: str, k: int) -> list[dict]:
         score = scores[i]
         if score == 0.0:
             break
-        query_ans.append({'chunk_id': chunk_id, 'score': float(score), **index.metadatas[i]})
+        query_ans.append({
+            'chunk_id': chunk_id,
+            'text': index.documents[i],
+            'score': float(score),
+            **index.metadatas[i]
+        })
     return query_ans
 
 
