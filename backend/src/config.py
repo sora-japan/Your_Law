@@ -12,6 +12,9 @@ MIN_RATIO = 0.5
 EMBEDDING_MODEL = 'cl-nagoya/ruri-v3-310m'
 BATCH_SIZE = 1000
 
+# クロスエンコーダー
+CROSS_ENCODER_MODEL = 'cl-nagoya/ruri-v3-reranker-310m'
+
 # ベクトルDB
 DISTANCE_SPACE = 'cosine'
 # クロマDBの保存先パス
