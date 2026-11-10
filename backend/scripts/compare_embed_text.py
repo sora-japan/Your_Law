@@ -1,6 +1,7 @@
 from collections import Counter
+
 from src import config
-from src.ingestion.chunk_splitting import load_current_chunks
+from src.ingestion.chunk_splitting import load_current_chunks, make_embed_text
 
 
 def with_law_title_and_suppl(chunk: dict) -> str:
@@ -54,7 +55,7 @@ def show_duplicate_sources(chunks: list[dict], counter: Counter) -> None:
     for dup in duplication_list:
         sources[dup] = []
     for chunk in chunks:
-        key = with_law_title_and_suppl(chunk)
+        key = make_embed_text(chunk)
         if key in sources:
             sources[key].append(chunk)
     for text in duplication_list:
@@ -75,7 +76,7 @@ if __name__ == '__main__':
     embed_text_list = []
     for chunk in chunks:
         # embed_text = chunk['text']
-        embed_text = with_law_title_and_suppl(chunk)
+        embed_text = make_embed_text(chunk)
         embed_text_list.append(embed_text)
     counter = Counter(embed_text_list)
     result = check_duplication(counter)
