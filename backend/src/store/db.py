@@ -2,6 +2,7 @@ import chromadb
 from pathlib import Path
 
 from src.embedding.embedding import embed_documents, embed_query
+from src.ingestion.chunk_splitting import make_embed_text
 
 # チャンクに必ず存在するキー、かけていたら前処理のバグなので、KeyErrorで落とす
 REQUIRED_KEYS = (
@@ -11,6 +12,9 @@ REQUIRED_KEYS = (
 
 # 分割レベルによって存在しないキー。空文字で埋める
 OPTIONAL_KEYS = ('article_num', 'paragraph_num', 'item_num', 'amend_law_num')
+
+# add_chunks が埋め込みに渡すものの種類。コレクション名に入れて、旧コレクションと区別する。
+EMBED_INPUT = 'prefixed'
 
 
 def create_client():
@@ -27,13 +31,18 @@ def collection_metadata(model_name: str, chunk_threshold: int, reference_date: s
     """コレクションの中身を決める値。名前の組み立てにも使用する。
 
     build_chunk_metadata はチャンク1件ごとのメタデータだが、これはコレクション全体に1つ。
-    chunk_countは実際に投入した件数。名前の末尾の数字がそのまま中身の件数になる。
+    chunk_countは実際に投入した件数で、名前にもそのまま入る。
+
+    定数にするかどうかは、その値を誰が決めているかで分けている。
+    EMBED_INPUT 以外は呼び出し側で決まるので、引数で受け取る。
+    EMBED_INPUT は同じファイルの add_chunks が決めるので、定数から入れる。
     """
     metadata = {
         'model_name': model_name,
         'chunk_threshold': chunk_threshold,
         'reference_date': reference_date,
         'chunk_count': chunk_count,
+        'embed_input': EMBED_INPUT,
     }
     return metadata
 
@@ -44,7 +53,8 @@ def collection_name(metadata: dict) -> str:
     chunk_threshold = metadata['chunk_threshold']
     reference_date = metadata['reference_date']
     chunk_count = metadata['chunk_count']
-    name = f'{model}_{chunk_threshold}_{reference_date}_{chunk_count}'
+    embed_input = metadata['embed_input']
+    name = f'{model}_{chunk_threshold}_{reference_date}_{chunk_count}_{embed_input}'
     return name
 
 
@@ -71,9 +81,10 @@ def add_chunks(collection, chunks: list[dict], model, batch_size: int) -> int:
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i: i + batch_size]
         documents = [chunk['text'] for chunk in batch]
+        embed_texts = [make_embed_text(chunk) for chunk in batch]
         collection.add(
             ids=[chunk['chunk_id'] for chunk in batch],
-            embeddings=embed_documents(model, documents),
+            embeddings=embed_documents(model, embed_texts),
             documents=documents,
             metadatas=[build_chunk_metadata(chunk) for chunk in batch],
         )
