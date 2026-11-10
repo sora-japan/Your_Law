@@ -5,7 +5,7 @@ BACKEND_DIR = pathlib.Path(__file__).parent.parent
 XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
 
 # チャンク分割
-CHUNK_THRESHOLD = 200
+CHUNK_THRESHOLD = 1000
 MIN_RATIO = 0.5
 
 # 埋め込み
