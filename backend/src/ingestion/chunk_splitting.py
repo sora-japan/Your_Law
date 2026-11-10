@@ -193,6 +193,29 @@ def get_chunks_with_meta(path: pathlib.Path, chunk_threshold: int, reference_dat
     return chunk_result
 
 
+def make_embed_text(chunk: dict) -> str: 
+    """埋め込みに渡す文字列を作る。法令名と、附則なら改正法令番号を本文に前置する。
+
+    本文だけを埋め込むと、別の法令の同じ定型文が同じベクトルになる。
+    「この省令は、公布の日から施行する。」は現行版に1万件あり、
+    これが上位を占拠して検索結果が質問によらず同じになる事故が起きていた(ADR-0050)。
+
+    amend_law_num は附則のチャンクにしかないためgetで取る。
+    本則にはキー自体が存在しない。
+
+    chunk['text']は書き換えない。Chromaに保存する本文と、
+    BM25の索引と、プロンプトに出す文面は今のままにするため。
+    """
+    parts = []
+    parts.append(chunk['law_title'])
+    amend_law_num = chunk.get('amend_law_num', '')
+    if amend_law_num != '':
+        parts.append(amend_law_num)
+    parts.append(chunk['text'])
+    embed_text = ' '.join(parts)
+    return embed_text
+
+
 def find_current_version_paths(xml_dir: pathlib.Path, reference_date: str) -> list[pathlib.Path]:
     """法令IDごとに、施行済みのうち最も新しい施行日のファイルを1つ選び、パスのリストで返す。
     
