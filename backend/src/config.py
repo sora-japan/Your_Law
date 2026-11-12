@@ -28,7 +28,7 @@ SUBSET_SEED = 42
 RESULTS_DIR = BACKEND_DIR / 'evaluation' / 'results'
 EVAL_SET_FILE = BACKEND_DIR / 'evaluation' / 'rag' / 'eval_set.jsonl'
 EVAL_K_LIST = (1, 3, 5, 10, 20, 30, 50, 100)
-
+SUBSET_LAW_IDS_FILE = BACKEND_DIR / 'evaluation' / 'rag' / 'subset_law_ids.json'
 
 # どの時点で施行済みの版を「現行版」とするかの基準日。
 # 比較実験の間コーパスを固定するために定数にしています(ADR-0040)。
@@ -36,7 +36,7 @@ EVAL_K_LIST = (1, 3, 5, 10, 20, 30, 50, 100)
 REFERENCE_DATE = '20261013'
 
 # LLM
-LLM_MODEL = "Qwen/Qwen3-8B"
+LLM_MODEL = 'Qwen/Qwen3-8B'
 
 # LLMのプロンプトに入れるチャンク数
 # 評価用のEVAL_K_LISTとは別物で、こちらは本番の構成の一部
