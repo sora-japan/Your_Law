@@ -1,4 +1,3 @@
-"""検索→リランク→プロンプト→生成"""
 import pathlib
 from dataclasses import dataclass
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
@@ -29,6 +28,10 @@ class Resources:
 
 
 def load_resources(chroma_dir: pathlib.Path, batch_size: int, *, embedding_model_name: str, cross_encoder_model_name: str, llm_model_name: str, collection_name: str) -> Resources:
+    """モデルと索引を読み込んで、Resources にまとめる。
+
+    起動時に1回だけ呼ぶ。BM25索引の構築に時間がかかるので、質問ごとには呼ばない。
+    """
     client = db.create_persistent_client(chroma_dir)
     collection = db.get_collection(client, collection_name)
     chunk_ids, documents, metadatas = db.get_all_chunks(collection, batch_size)
@@ -48,6 +51,11 @@ def load_resources(chroma_dir: pathlib.Path, batch_size: int, *, embedding_model
 
 
 def search(resources: Resources, question: str, retrieval_k: int, generation_k: int) -> list[dict]:
+    """ベクトル検索とBM25をRRFで統合し、リランクして上位を返す。
+
+    retrieval_k は各検索が取る候補。generation_k は最後に残す件数。
+    返す前に generation_k 件で切る。
+    """
     vector_result = db.search(resources.collection, resources.embedding_model, question, retrieval_k)
     bm25_result = bm25.search(resources.bm25_index, question, retrieval_k)
     rrf_result = rrf(vector_result, bm25_result)
@@ -56,6 +64,11 @@ def search(resources: Resources, question: str, retrieval_k: int, generation_k: 
 
 
 def generate(resources: Resources, question: str, gen_params: dict, retrieved: list[dict], system_prompt: str, enable_thinking: bool) -> dict:
+    """検索結果を文脈にして LLM に渡し、回答を作る。
+
+    retrieved は search の戻り値をそのまま渡す。
+    戻り値は text / output_token / token_limit / generation_time を持つ辞書。
+    """
     context = build_context(retrieved)
     prompt = build_user_prompt(question, context)
     generated = llm.generate(resources.llm_model, resources.tokenizer, system_prompt, prompt, gen_params, enable_thinking)
