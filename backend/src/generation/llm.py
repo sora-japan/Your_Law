@@ -106,7 +106,7 @@ def generate_stream(model, tokenizer, system_prompt: str, prompt: str, gen_param
         yield piece
     result['total_time'] = round(time.perf_counter() - start, 3)
     thread.join()
-    if result['error'] is not None:
+    if result.get('error') is not None:
         raise result['error']
     input_length = len(tokenized_input['input_ids'][0])
     output_ids = result['generated_ids'][0][input_length:]
@@ -126,21 +126,16 @@ if __name__ == '__main__':
         'max_new_tokens': 512,
         'do_sample': True,
         'temperature': 0.7,
-        'top_p': 0.5,
+        'top_p': 0.8,
+        'top_k': 20,
     }
-    generate_result = {
-        'ttft': None,
-        'total_time': None,
-        'tokenize_time': None,
-        'output_token': None,
-        'token_limit': None,
-        'generated_ids': None,
-        'error': None,
-    }
-    stream = generate_stream(model, tokenizer, system_prompt, prompt, gen_params, enable_thinking, generate_result)
-    for piece in stream:
-        print(piece, end='', flush=True)
-    print()
-    for key in ['ttft', 'total_time', 'tokenize_time', 'output_token', 'token_limit']:
-        print(key, generate_result[key])
-
+    KEYS = ['ttft', 'total_time', 'tokenize_time', 'output_token', 'token_limit', 'generated_ids', 'error']
+    results = []
+    for i in range(2):
+        run_result = dict.fromkeys(KEYS)
+        stream = generate_stream(model, tokenizer, system_prompt, prompt, gen_params, enable_thinking, run_result)
+        for piece in stream:
+            print(piece, end='', flush=True)
+        print()
+        results.append(run_result)
+    print(results)

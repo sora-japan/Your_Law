@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from chromadb.api.models.Collection import Collection
 from sentence_transformers import SentenceTransformer, CrossEncoder
+from collections.abc import Iterator
 
 from src import config
 from src.embedding import embedding
@@ -28,9 +29,11 @@ class Resources:
 
 
 def load_resources(chroma_dir: pathlib.Path, batch_size: int, *, embedding_model_name: str, cross_encoder_model_name: str, llm_model_name: str, collection_name: str) -> Resources:
-    """モデルと索引を読み込んで、Resources にまとめる。
+    """モデルと索引を読み込んで、ウォームアップまで済ませて Resources を返す。
 
     起動時に1回だけ呼ぶ。BM25索引の構築に時間がかかるので、質問ごとには呼ばない。
+    最後にウォームアップを1回通す。
+    各モデルは初回の推論だけ遅いため、入れないと最初に質問した人だけが待たされる。
     """
     client = db.create_persistent_client(chroma_dir)
     collection = db.get_collection(client, collection_name)
@@ -40,7 +43,7 @@ def load_resources(chroma_dir: pathlib.Path, batch_size: int, *, embedding_model
     cross_encoder_model = load_cross_encoder(cross_encoder_model_name)
     tokenizer = llm.load_tokenizer(llm_model_name)
     llm_model = llm.load_model(llm_model_name)
-    return Resources(
+    resources = Resources(
         collection=collection,
         embedding_model=embedding_model,
         bm25_index=bm25_index,
@@ -48,6 +51,11 @@ def load_resources(chroma_dir: pathlib.Path, batch_size: int, *, embedding_model
         tokenizer=tokenizer,
         llm_model=llm_model,
     )
+    # ウォームアップ
+    search(resources, 'ウォームアップ', 5, 1)
+    dummy_input = tokenizer('Hello world', return_tensors='pt').to(llm_model.device)
+    _ = llm_model.generate(**dummy_input, max_new_tokens=8, do_sample=False)
+    return resources
 
 
 def search(resources: Resources, question: str, retrieval_k: int, generation_k: int) -> list[dict]:
@@ -63,15 +71,17 @@ def search(resources: Resources, question: str, retrieval_k: int, generation_k: 
     return retrieved
 
 
-def generate(resources: Resources, question: str, gen_params: dict, retrieved: list[dict], system_prompt: str, enable_thinking: bool) -> dict:
-    """検索結果を文脈にして LLM に渡し、回答を作る。
+def generate(resources: Resources, question: str, gen_params: dict, retrieved: list[dict], system_prompt: str, enable_thinking: bool, result: dict) -> Iterator[str]:
+    """検索結果を文脈にして LLM に渡し、回答を少しずつ返す。
 
     retrieved は search の戻り値をそのまま渡す。
-    戻り値は text / output_token / token_limit / generation_time を持つ辞書。
+    受け取った順に繋げると全文になる。
+    回し終わると result に ttft / total_time / tokenize_time / output_token / token_limit が入る。
+    生成が失敗した場合は、その例外をそのまま raise する。
     """
     context = build_context(retrieved)
     prompt = build_user_prompt(question, context)
-    generated = llm.generate(resources.llm_model, resources.tokenizer, system_prompt, prompt, gen_params, enable_thinking)
+    generated = llm.generate_stream(resources.llm_model, resources.tokenizer, system_prompt, prompt, gen_params, enable_thinking, result)
     return generated
 
 
@@ -90,5 +100,10 @@ if __name__ == '__main__':
     for chunk in retrieved:
         print(chunk['law_title'], chunk['article_num'], round(chunk['rerank_score'], 4))
     print('===生成結果===')
-    generated = generate(resources, question, config.GENERATE_PARAMS, retrieved, SYSTEM_PROMPT_RAG, False)
-    print(generated)
+    result = {}
+    stream = generate(resources, question, config.GENERATE_PARAMS, retrieved, SYSTEM_PROMPT_RAG, False, result)
+    for piece in stream:
+        print(piece, end='', flush=True)
+    print()
+    for key in ['ttft', 'total_time', 'tokenize_time', 'output_token', 'token_limit']:
+        print(key, result[key])
