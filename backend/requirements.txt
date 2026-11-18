@@ -25,3 +25,5 @@ requests==2.34.2
 google-genai==2.32.0
 python-dotenv==1.2.3
  
+# 画面
+gradio==6.32.0
