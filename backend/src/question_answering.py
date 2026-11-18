@@ -14,9 +14,6 @@ from src.retrieval.rerank import rerank, load_cross_encoder
 from src.generation import llm 
 from src.generation.prompt import build_user_prompt, build_context, SYSTEM_PROMPT_RAG
 
-RETRIEVAL_K = 100
-COLLECTION_NAME = 'ruri-v3-310m_1000_20261013_50055_prefixed'
-
 
 @dataclass
 class Resources:
@@ -92,11 +89,11 @@ if __name__ == '__main__':
         embedding_model_name=config.EMBEDDING_MODEL,
         cross_encoder_model_name=config.CROSS_ENCODER_MODEL,
         llm_model_name=config.LLM_MODEL,
-        collection_name=COLLECTION_NAME,
+        collection_name=config.COLLECTION_NAME,
     )
     question = '訪問販売で契約した場合、申込みの撤回（クーリング・オフ）ができるのは書面を受領した日から何日以内ですか？'
     print('===検索結果===')
-    retrieved = search(resources, question, RETRIEVAL_K, config.GENERATION_K)
+    retrieved = search(resources, question, config.RETRIEVAL_K, config.GENERATION_K)
     for chunk in retrieved:
         print(chunk['law_title'], chunk['article_num'], round(chunk['rerank_score'], 4))
     print('===生成結果===')

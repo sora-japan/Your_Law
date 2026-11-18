@@ -19,6 +19,7 @@ CROSS_ENCODER_MODEL = 'cl-nagoya/ruri-v3-reranker-310m'
 DISTANCE_SPACE = 'cosine'
 # クロマDBの保存先パス
 CHROMA_DIR = BACKEND_DIR / 'chroma'
+COLLECTION_NAME = 'ruri-v3-310m_1000_20261013_50055_prefixed'
 
 # サブセットの目標チャンク数とシード値
 SUBSET_TARGET_CHUNKS = 50000
@@ -37,7 +38,6 @@ REFERENCE_DATE = '20261013'
 
 # LLM
 LLM_MODEL = 'Qwen/Qwen3-8B'
-
 GENERATE_PARAMS = {
     'max_new_tokens': 2048,
     'do_sample': True,
@@ -46,8 +46,10 @@ GENERATE_PARAMS = {
     'top_k': 20,
 }
 
-
 # LLMのプロンプトに入れるチャンク数
 # 評価用のEVAL_K_LISTとは別物で、こちらは本番の構成の一部
 # 増やすとRecallは上がるが、無関係な条文も増えて生成が悪化する可能性がある。
 GENERATION_K = 5
+
+# 検索(ベクトル・BM25 がそれぞれ取る候補数)
+RETRIEVAL_K = 100
