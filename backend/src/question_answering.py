@@ -76,7 +76,7 @@ def generate(resources: Resources, question: str, gen_params: dict, retrieved: l
 
     retrieved は search の戻り値をそのまま渡す。
     受け取った順に繋げると全文になる。
-    回し終わると result に ttft / total_time / tokenize_time / output_token / token_limit が入る。
+    回し終わると result に ttft / total_time / output_token / token_limit が入る。
     生成が失敗した場合は、その例外をそのまま raise する。
     """
     context = build_context(retrieved)
@@ -105,5 +105,5 @@ if __name__ == '__main__':
     for piece in stream:
         print(piece, end='', flush=True)
     print()
-    for key in ['ttft', 'total_time', 'tokenize_time', 'output_token', 'token_limit']:
+    for key in ['ttft', 'total_time', 'output_token', 'token_limit']:
         print(key, result[key])

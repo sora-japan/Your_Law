@@ -67,8 +67,7 @@ def generate(model, tokenizer, system_prompt: str, prompt: str, gen_params: dict
 def generate_stream(model, tokenizer, system_prompt: str, prompt: str, gen_params: dict, enable_thinking: bool, result: dict) -> Iterator[str]: 
     """生成しながら、回答を少しずつ返す。
 
-    回し終わると result に ttft / total_time / tokenize_time /
-    output_token / token_limit が入る。
+    回し終わると result に ttft / total_time / output_token / token_limit が入る。
     生成が失敗した場合は、その例外をそのまま raise する。
     """
     chat = [
@@ -87,7 +86,6 @@ def generate_stream(model, tokenizer, system_prompt: str, prompt: str, gen_param
         return_tensors="pt",
         return_dict=True,
     ).to(model.device)
-    result['tokenize_time'] = round(time.perf_counter() - start, 3)
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
     generate_kwargs = {**tokenized_input, 'streamer': streamer, **gen_params}
     def run():
@@ -129,7 +127,7 @@ if __name__ == '__main__':
         'top_p': 0.8,
         'top_k': 20,
     }
-    KEYS = ['ttft', 'total_time', 'tokenize_time', 'output_token', 'token_limit', 'generated_ids', 'error']
+    KEYS = ['ttft', 'total_time', 'output_token', 'token_limit', 'generated_ids', 'error']
     results = []
     for i in range(2):
         run_result = dict.fromkeys(KEYS)
@@ -138,4 +136,7 @@ if __name__ == '__main__':
             print(piece, end='', flush=True)
         print()
         results.append(run_result)
-    print(results)
+    for i, run_result in enumerate(results, start=1):
+        print(i, '回目')
+        for key in ['ttft', 'total_time', 'output_token', 'token_limit']:
+            print(' ', key, run_result[key])
