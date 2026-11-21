@@ -27,7 +27,10 @@ def paragraph_chunking(chunk_threshold: int, paragraph: ET.Element, article_num:
     """項(Paragraph) 1件をチャンクのリストにする。
 
     閾値以内なら項のまま1チャンク。超えるなら号へ、号でも超えるなら句点分割へ降りる。
-    号を持たない項は句点分割に直接かける。
+    号に柱書(ParagraphSentence)を前置するのは、号が柱書に続けて読む前提で書かれているため。
+    号だけでは、列挙されたものがどう扱われるのかが決まらない。
+    号を持たない項には前置しない。項の本文に柱書が含まれているので二重になる。
+    前置きは閾値の判定より後に足すので、チャンクの長さは最大で閾値＋前置きになる。
     article_num / article_heading は条の情報で、xml_chunking から呼ばれた時だけ渡る。
     条を持たない法令・附則からは項が直接渡されるため、空文字になる。
     """
@@ -41,32 +44,33 @@ def paragraph_chunking(chunk_threshold: int, paragraph: ET.Element, article_num:
     paragraph_num = paragraph.get('Num', '')
     items = paragraph.findall('Item')
     if items:
+        paragraph_sentence = get_child_text(paragraph, 'ParagraphSentence')
         for item in items:
             chunk = try_chunk(chunk_threshold, 'Item', item, 'item_num')
             if chunk:
-                chunk['text'] = article_heading + chunk['text']
+                chunk['text'] = article_heading + paragraph_sentence + chunk['text']
                 chunk['article_num'] = article_num
                 chunk['paragraph_num'] = paragraph_num
                 result.append(chunk)
                 continue
-            text = article_heading + normalization_text(extract_text(item))
+            text = normalization_text(extract_text(item))
             for i, split_text in enumerate(split_by_threshold(chunk_threshold, text)):
                 result.append({
                     'level': 'Split',
                     'article_num': article_num,
                     'paragraph_num': paragraph_num,
                     'item_num': item.get('Num', ''),
-                    'text': split_text,
+                    'text': article_heading + paragraph_sentence + split_text,
                     'split_index': i
                 })
     else:
-        text = article_heading + normalization_text(extract_text(paragraph))
+        text = normalization_text(extract_text(paragraph))
         for i, split_text in enumerate(split_by_threshold(chunk_threshold, text)):
             result.append({
                 'level': 'Split',
                 'article_num': article_num,
                 'paragraph_num': paragraph_num,
-                'text': split_text,
+                'text': article_heading + split_text,
                 'split_index': i
             })
     return result
@@ -258,3 +262,6 @@ if __name__ == '__main__':
     is_current_list = [chunk['is_current'] for chunk in chunks]
     is_current_counts = Counter(is_current_list)
     print(f'is_currentの内訳: {is_current_counts}')
+
+    level_list = [chunk['level'] for chunk in chunks]
+    print(f'levelの内訳: {Counter(level_list)}')
