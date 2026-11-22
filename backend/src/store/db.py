@@ -16,6 +16,9 @@ OPTIONAL_KEYS = ('article_num', 'paragraph_num', 'item_num', 'amend_law_num')
 # add_chunks が埋め込みに渡すものの種類。コレクション名に入れて、旧コレクションと区別する。
 EMBED_INPUT = 'prefixed'
 
+# チャンクの作り方のver。コレクション名に入れて、旧コレクションと区別する
+CHUNKING_VERSION = 'v2'
+
 
 def create_client():
     """インメモリのクライアントを返す。プロセスが終われば中身は消える。"""
@@ -34,8 +37,8 @@ def collection_metadata(model_name: str, chunk_threshold: int, reference_date: s
     chunk_countは実際に投入した件数で、名前にもそのまま入る。
 
     定数にするかどうかは、その値を誰が決めているかで分けている。
-    EMBED_INPUT 以外は呼び出し側で決まるので、引数で受け取る。
-    EMBED_INPUT は同じファイルの add_chunks が決めるので、定数から入れる。
+    EMBED_INPUT と CHUNKING_VERSION は呼び出し側で決まるので、引数で受け取る。
+    この2つは呼び出し側が選ぶ値ではなく、コードを変えた時に書き換える値なので定数にする。
     """
     metadata = {
         'model_name': model_name,
@@ -43,6 +46,7 @@ def collection_metadata(model_name: str, chunk_threshold: int, reference_date: s
         'reference_date': reference_date,
         'chunk_count': chunk_count,
         'embed_input': EMBED_INPUT,
+        'chunking_version': CHUNKING_VERSION,
     }
     return metadata
 
@@ -54,7 +58,8 @@ def collection_name(metadata: dict) -> str:
     reference_date = metadata['reference_date']
     chunk_count = metadata['chunk_count']
     embed_input = metadata['embed_input']
-    name = f'{model}_{chunk_threshold}_{reference_date}_{chunk_count}_{embed_input}'
+    chunking_version = metadata['chunking_version']
+    name = f'{model}_{chunk_threshold}_{reference_date}_{chunk_count}_{embed_input}_{chunking_version}'
     return name
 
 
@@ -154,6 +159,7 @@ if __name__ == '__main__':
 
     meta = collection_metadata(config.EMBEDDING_MODEL, config.CHUNK_THRESHOLD, config.REFERENCE_DATE, len(target))
     name = collection_name(meta)
+    print(name)
 
     model = load_model(config.EMBEDDING_MODEL)
     client = create_client()
