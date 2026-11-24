@@ -5,7 +5,7 @@ BACKEND_DIR = pathlib.Path(__file__).parent.parent
 XML_DIR = BACKEND_DIR / 'data' / 'all_xml'
 
 # チャンク分割
-CHUNK_THRESHOLD = 1000
+CHUNK_THRESHOLD = 500
 MIN_RATIO = 0.5
 
 # 埋め込み
@@ -19,9 +19,11 @@ CROSS_ENCODER_MODEL = 'cl-nagoya/ruri-v3-reranker-310m'
 DISTANCE_SPACE = 'cosine'
 # クロマDBの保存先パス
 CHROMA_DIR = BACKEND_DIR / 'chroma'
-COLLECTION_NAME = 'ruri-v3-310m_1000_20261013_50055_prefixed'
+COLLECTION_NAME = 'ruri-v3-310m_500_20261013_64593_prefixed_v2'
 
 # サブセットの目標チャンク数とシード値
+# 法令IDを選んだときの目標値とは別で、IDはsubset_law_ids.jsonで固定したので
+# 閾値を帰ると実際のチャンク数はこの値から離れる
 SUBSET_TARGET_CHUNKS = 50000
 SUBSET_SEED = 42
 
