@@ -31,7 +31,7 @@ def answer(question: str) -> Iterator[str]:
         yield 'お手数ですが、具体的な質問内容をご提示ください。'
         return
     yield '検索中...'
-    retrieved = search(resources, question, config.RETRIEVAL_K, config.GENERATION_K)
+    retrieved = search(resources, question, config.RETRIEVAL_K, config.GENERATION_K, config.RETRIEVAL_METHOD)
     yield '条文を読み込み中...'
     result = {}
     stream = generate(resources, question, config.GENERATE_PARAMS, retrieved, SYSTEM_PROMPT_RAG, False, result)

@@ -49,23 +49,32 @@ def load_resources(chroma_dir: pathlib.Path, batch_size: int, *, embedding_model
         llm_model=llm_model,
     )
     # ウォームアップ
-    search(resources, 'ウォームアップ', 5, 1)
+    # hybrid_rerank は埋め込みとクロスエンコーダの両方を通るので、
+    # どの方式で測る時でも必要なモデルが温まる
+    search(resources, 'ウォームアップ', 5, 1, 'hybrid-rerank')
     dummy_input = tokenizer('Hello world', return_tensors='pt').to(llm_model.device)
     _ = llm_model.generate(**dummy_input, max_new_tokens=8, do_sample=False)
     return resources
 
 
-def search(resources: Resources, question: str, retrieval_k: int, generation_k: int) -> list[dict]:
+def search(resources: Resources, question: str, retrieval_k: int, generation_k: int, method: str) -> list[dict]:
     """ベクトル検索とBM25をRRFで統合し、リランクして上位を返す。
+
+    method が 'vector' ならベクトル検索の結果をそのまま返し、
+    'hybrid-rerank' ならBM25 と RRF で統合してリランクする。
 
     retrieval_k は各検索が取る候補。generation_k は最後に残す件数。
     返す前に generation_k 件で切る。
     """
     vector_result = db.search(resources.collection, resources.embedding_model, question, retrieval_k)
-    bm25_result = bm25.search(resources.bm25_index, question, retrieval_k)
-    rrf_result = rrf(vector_result, bm25_result)
-    retrieved = rerank(resources.cross_encoder_model, question, rrf_result)[:generation_k]
-    return retrieved
+    if method == 'vector':
+        return vector_result[:generation_k]
+    if method == 'hybrid-rerank':
+        bm25_result = bm25.search(resources.bm25_index, question, retrieval_k)
+        rrf_result = rrf(vector_result, bm25_result)
+        retrieved = rerank(resources.cross_encoder_model, question, rrf_result)[:generation_k]
+        return retrieved
+    raise ValueError(f'存在しない検索方式が入力されました: {method}')
 
 
 def generate(resources: Resources, question: str, gen_params: dict, retrieved: list[dict], system_prompt: str, enable_thinking: bool, result: dict) -> Iterator[str]:
@@ -93,9 +102,13 @@ if __name__ == '__main__':
     )
     question = '訪問販売で契約した場合、申込みの撤回（クーリング・オフ）ができるのは書面を受領した日から何日以内ですか？'
     print('===検索結果===')
-    retrieved = search(resources, question, config.RETRIEVAL_K, config.GENERATION_K)
+    retrieved = search(resources, question, config.RETRIEVAL_K, config.GENERATION_K, config.RETRIEVAL_METHOD)
     for chunk in retrieved:
-        print(chunk['law_title'], chunk['article_num'], round(chunk['rerank_score'], 4))
+        rerank_score = chunk.get('rerank_score')
+        if rerank_score is None:
+            print(chunk['law_title'], chunk['article_num'])
+        else :
+            print(chunk['law_title'], chunk['article_num'], round(rerank_score, 4))
     print('===生成結果===')
     result = {}
     stream = generate(resources, question, config.GENERATE_PARAMS, retrieved, SYSTEM_PROMPT_RAG, False, result)

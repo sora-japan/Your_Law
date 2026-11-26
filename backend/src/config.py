@@ -55,3 +55,6 @@ GENERATION_K = 5
 
 # 検索(ベクトル・BM25 がそれぞれ取る候補数)
 RETRIEVAL_K = 100
+
+# 検索方式。本番で使うもの(vector / hybrid-rerank)
+RETRIEVAL_METHOD = 'hybrid-rerank'
